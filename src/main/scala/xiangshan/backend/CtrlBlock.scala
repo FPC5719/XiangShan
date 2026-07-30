@@ -19,7 +19,6 @@ package xiangshan.backend
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utility._
 import utils._
 import xiangshan._
@@ -51,27 +50,13 @@ class CtrlToFtqIO(implicit p: Parameters) extends XSBundle {
   val callRetCommit = Vec(CommitWidth, Valid(new CallRetCommit))
 }
 
-class CtrlBlock(params: BackendParams)(implicit p: Parameters) extends LazyModule {
-  override def shouldBeInlined: Boolean = false
-
-  val rob = LazyModule(new Rob(params))
-
-  lazy val module = new CtrlBlockImp(this)(p, params)
-
-  val gpaMem = LazyModule(new GPAMem())
-}
-
-class CtrlBlockImp(
-  override val wrapper: CtrlBlock
-)(implicit
-  p: Parameters,
-  params: BackendParams
-) extends LazyModuleImp(wrapper)
+class CtrlBlock(val params: BackendParams)(implicit val p: Parameters) extends Module
   with HasXSParameter
   with HasCircularQueuePtrHelper
   with HasPerfEvents
   with HasCriticalErrors
 {
+  implicit private val backendParamsImplicit: BackendParams = params
   val pcMemRdIndexes = new NamedIndexes(Seq(
     "redirect"  -> 1,
     "memPredLoad"   -> 1,
@@ -93,7 +78,7 @@ class CtrlBlockImp(
   val io = IO(new CtrlBlockIO())
 
   val dispatch = Module(new Dispatch)
-  val gpaMem = wrapper.gpaMem.module
+  val gpaMem = Module(new GPAMem())
   val decode = Module(new DecodeStage)
   val fusionDecoder = Module(new FusionDecoder)
   val rename = Module(new Rename)
@@ -101,7 +86,7 @@ class CtrlBlockImp(
   val lsqEnqCtrl = Module(new LsqEnqCtrl)
   private def hasRen: Boolean = true
   private val pcMem = Module(new SyncDataModuleTemplate(PrunedAddr(VAddrBits), FtqSize, numPcMemRead, 1, "BackendPC", hasRen = hasRen))
-  private val rob = wrapper.rob.module
+  private val rob = Module(new Rob(params))
   private val memCtrl = Module(new MemCtrl(params))
 
   private val disableFusion = decode.io.csrCtrl.singlestep || !decode.io.csrCtrl.fusion_enable

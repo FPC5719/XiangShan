@@ -10,7 +10,7 @@ import scala.language.implicitConversions
 
 abstract class CSRRWType {
   val wfn: CSRWfnType
-  var rfn: CSRRfnType
+  val rfn: CSRRfnType
   val ref: Option[CSREnumType] = None
 
   def isRO: Boolean = this.isInstanceOf[ROType] || this.isInstanceOf[RefROType]
@@ -37,11 +37,11 @@ abstract class CSRRWType {
 
 case class WARLType(
   override val wfn: CSRWfnType,
-  override var rfn: CSRRfnType = null,
+  override val rfn: CSRRfnType = null,
 ) extends CSRRWType
 
 case class ROType(
-  override var rfn: CSRRfnType = null,
+  override val rfn: CSRRfnType = null,
 ) extends CSRRWType {
   override final val wfn: CSRWfnType = wNoEffect
   var isHardWired = false
@@ -55,12 +55,12 @@ case class ROType(
 
 case class WLRLType(
   override val wfn: CSRWfnType,
-  override var rfn: CSRRfnType,
+  override val rfn: CSRRfnType,
 ) extends CSRRWType
 
 case class RWType() extends CSRRWType {
   override final val wfn: CSRWfnType = wNoFilter
-  override final var rfn: CSRRfnType = null
+  override final val rfn: CSRRfnType = null
 }
 
 trait CheckRef { self: CSRRWType =>
@@ -70,12 +70,12 @@ trait CheckRef { self: CSRRWType =>
 case class RefWARLType(
   override val ref: Option[CSREnumType],
   override val wfn: CSRWfnType,
-  override var rfn: CSRRfnType = null,
+  override val rfn: CSRRfnType = null,
 ) extends CSRRWType with CheckRef
 
 case class RefROType(
   override val ref: Option[CSREnumType],
-  override var rfn: CSRRfnType = null,
+  override val rfn: CSRRfnType = null,
 ) extends CSRRWType with CheckRef {
   override final val wfn: CSRWfnType = wNoEffect
 }
@@ -83,14 +83,14 @@ case class RefROType(
 case class RefWLRLType(
   override val ref: Option[CSREnumType],
   override val wfn: CSRWfnType,
-  override var rfn: CSRRfnType,
+  override val rfn: CSRRfnType,
 ) extends CSRRWType with CheckRef
 
 case class RefRWType(
   override val ref: Option[CSREnumType],
 ) extends CSRRWType with CheckRef {
   override final val wfn: CSRWfnType = wNoFilter
-  override final var rfn: CSRRfnType = null
+  override final val rfn: CSRRfnType = null
 }
 
 object CSRFunc {

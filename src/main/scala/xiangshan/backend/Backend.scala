@@ -170,7 +170,6 @@ class BackendInlined(val params: BackendParams)(implicit p: Parameters) extends 
   params.updateCopyPdestInfo
   println(s"[Backend] copyPdestInfo ${params.copyPdestInfo}")
   params.allExuParams.map(_.copyNum)
-  val ctrlBlock = LazyModule(new CtrlBlock(params))
 
   lazy val module = new BackendInlinedImp(this)
 }
@@ -183,7 +182,7 @@ class BackendInlinedImp(override val wrapper: BackendInlined)(implicit p: Parame
 
   val io = IO(new BackendIO()(p, wrapper.params))
 
-  private val ctrlBlock = wrapper.ctrlBlock.module
+  private val ctrlBlock = Module(new CtrlBlock(params))
   private val intRegion = Module(new Region(params.intSchdParams.get))
   private val fpRegion = Module(new Region(params.fpSchdParams.get))
   private val vecRegion = Module(new Region(params.vecSchdParams.get))

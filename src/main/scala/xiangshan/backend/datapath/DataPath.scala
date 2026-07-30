@@ -4,7 +4,6 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import difftest._
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utility._
 import utils.SeqUtils._
 import utils._

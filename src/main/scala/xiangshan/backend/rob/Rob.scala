@@ -29,7 +29,6 @@ import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 import difftest._
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utility._
 import utils._
 import xiangshan._
@@ -50,14 +49,9 @@ import xiangshan.backend.trace._
 import chisel3.experimental.BundleLiterals._
 import chisel3.util.experimental.decode.TruthTable
 
-class Rob(params: BackendParams)(implicit p: Parameters) extends LazyModule with HasXSParameter {
-  override def shouldBeInlined: Boolean = false
-
-  lazy val module = new RobImp(this)(p, params)
-}
-
-class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendParams) extends LazyModuleImp(wrapper)
+class Rob(val params: BackendParams)(implicit val p: Parameters) extends Module
   with HasXSParameter with HasCircularQueuePtrHelper with HasPerfEvents with HasCriticalErrors {
+  implicit private val backendParamsImplicit: BackendParams = params
 
   private val LduCnt = params.LduCnt
   private val StaCnt = params.StaCnt

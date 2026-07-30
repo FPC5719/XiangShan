@@ -206,8 +206,8 @@ class VlBusyTable(numReadPorts: Int, numWritePorts: Int, numPhyPregs: Int, pregW
     val vlReadInfo = Vec(numReadPorts, new VlBusyTableReadIO)
   })
 
-  var intSchdVlWbPort = p(XSCoreParamsKey).intSchdVlWbPort
-  var vfSchdVlWbPort = p(XSCoreParamsKey).vfSchdVlWbPort
+  val intSchdVlWbPort = p(XSCoreParamsKey).intSchdVlWbPort
+  val vfSchdVlWbPort = p(XSCoreParamsKey).vfSchdVlWbPort
 
   val nonzeroTableUpdate = Wire(Vec(numPhyPregs, Bool()))
   val vlmaxTableUpdate = Wire(Vec(numPhyPregs, Bool()))
@@ -258,4 +258,3 @@ class VlBusyTable(numReadPorts: Int, numWritePorts: Int, numPhyPregs: Int, pregW
     vlRes.is_vlmax := !vlmaxTable(res.req)
   }
 }
-

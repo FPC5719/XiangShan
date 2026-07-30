@@ -325,7 +325,7 @@ class NewCSR(implicit val p: Parameters) extends Module
 
   private val wenLegalReg = GatedValidRegNext(wenLegal)
 
-  var csrRwMap: SeqMap[Int, (CSRAddrWriteBundle[_], UInt)] =
+  val csrRwMap: SeqMap[Int, (CSRAddrWriteBundle[_], UInt)] =
     machineLevelCSRMap ++
     supervisorLevelCSRMap ++
     hypervisorCSRMap ++
@@ -351,7 +351,7 @@ class NewCSR(implicit val p: Parameters) extends Module
     pmpCSRMods ++
     pmaCSRMods
 
-  var csrOutMap: SeqMap[Int, UInt] =
+  val csrOutMap: SeqMap[Int, UInt] =
     machineLevelCSROutMap ++
     supervisorLevelCSROutMap ++
     hypervisorCSROutMap ++

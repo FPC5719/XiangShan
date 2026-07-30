@@ -2,20 +2,13 @@ package xiangshan.backend
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import org.chipsalliance.cde.config.Parameters
 import utility.SyncDataModuleTemplate
 import xiangshan.HasXSParameter
 import xiangshan.frontend.{IfuToBackendIO}
 import xiangshan.frontend.ftq.FtqPtr
 
-class GPAMem(implicit p: Parameters) extends LazyModule {
-  override def shouldBeInlined: Boolean = false
-
-  lazy val module = new GPAMemImp(this)
-}
-
-class GPAMemImp(override val wrapper: GPAMem)(implicit p: Parameters) extends LazyModuleImp(wrapper) with HasXSParameter {
+class GPAMem(implicit val p: Parameters) extends Module with HasXSParameter {
   val io = IO(new GPAMemIO)
 
   private val mem = Module (new SyncDataModuleTemplate(new GPAMemEntry, FtqSize, numRead = 1, numWrite = 1, hasRen = true))

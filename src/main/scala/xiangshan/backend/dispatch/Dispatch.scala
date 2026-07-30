@@ -20,7 +20,6 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import chisel3.util.experimental.decode._
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utility._
 import xiangshan.ExceptionNO._
 import xiangshan.TopDownCounters._
@@ -364,9 +363,9 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
   val ignoreOldVdVec = Wire(Vec(renameWidth, Bool()))
   for (i <- 0 until renameWidth){
     // numRegSrcVf - 1 is old vd
-    var j = numRegSrcVf - 1
+    val j = numRegSrcVf - 1
     // 2 is type of vec
-    var k = 2
+    val k = 2
     val readidx = i * idxRegType(k).size + idxRegType(k).indexOf(j)
     val readEn = SrcType.isVp(fromRename(i).bits.srcType(j))
     val isDependOldVd = fromRename(i).bits.vpu.isDependOldVd

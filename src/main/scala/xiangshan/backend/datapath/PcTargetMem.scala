@@ -3,19 +3,18 @@ package xiangshan.backend
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utility._
 import xiangshan._
 import xiangshan.backend.datapath.DataConfig.VAddrData
 import xiangshan.frontend.ftq.{FtqPtr, FtqToCtrlIO}
 
-//class PcTargetMem(params: BackendParams)(implicit p: Parameters) extends LazyModule {
+//class PcTargetMem(params: BackendParams)(implicit p: Parameters) extends Module {
 //  override def shouldBeInlined: Boolean = false
 //
-//  lazy val module = new PcTargetMemImp(this)(p, params)
+//  lazy val module = new PcTargetMemImp(params)
 //}
 //
-//class PcTargetMemImp(override val wrapper: PcTargetMem)(implicit p: Parameters, params: BackendParams) extends LazyModuleImp(wrapper) with HasXSParameter {
+//class PcTargetMemImp(implicit p: Parameters, params: BackendParams) extends Module with HasXSParameter {
 //
 //  require(params.numTargetReadPort == params.numPcMemReadPort, "The EXUs which need PC must be the same as the EXUs which need Target PC.")
 //  private val numTargetMemRead = params.numTargetReadPort + params.numPcMemReadPort

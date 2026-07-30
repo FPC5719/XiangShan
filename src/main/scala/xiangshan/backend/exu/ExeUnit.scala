@@ -20,7 +20,6 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.experimental.hierarchy.{Definition, instantiable}
 import chisel3.util._
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utility._
 import xiangshan.backend.fu.{CSRFileIO, FenceIO, FuType, FuncUnitInput, UncertainLatency}
 import xiangshan.backend.Bundles._

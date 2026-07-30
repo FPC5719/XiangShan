@@ -41,14 +41,14 @@ class indexedLSUopTable(uopIdx:Int) extends Module {
   def genCsBundle_VEC_INDEXED_LDST(lmul:Int, emul:Int, uopIdx:Int): (Int, Int) ={
     // only consider non segment indexed load/store
     if (lmul < emul) {    // lmul < emul, uop num is depend on emul * nf
-      var offset = 1 << (emul - lmul)
+      val offset = 1 << (emul - lmul)
       for (i <- 0 until (1 << emul)) {
         if (uopIdx == i) {
           return (i, i / offset)
         }
       }
     } else {              // lmul > emul, uop num is depend on lmul * nf
-      var offset = 1 << (lmul - emul)
+      val offset = 1 << (lmul - emul)
       for (i <- 0 until (1 << lmul)) {
         if (uopIdx == i) {
           return (i / offset, i)
@@ -61,9 +61,9 @@ class indexedLSUopTable(uopIdx:Int) extends Module {
   var combVemulNf : Seq[(Int, Int, Int, Int)] = Seq()
   for (emul <- 0 until 4) {
     for (lmul <- 0 until 4) {
-      var offset = genCsBundle_VEC_INDEXED_LDST(lmul, emul, uopIdx)
-      var offsetVs2 = offset._1
-      var offsetVd = offset._2
+      val offset = genCsBundle_VEC_INDEXED_LDST(lmul, emul, uopIdx)
+      val offsetVs2 = offset._1
+      val offsetVd = offset._2
       combVemulNf :+= (emul, lmul, offsetVs2, offsetVd)
     }
   }

@@ -28,7 +28,7 @@ case class RFRdArbParams(
   def portMax: Int = inRdCfgs.flatten.flatten.map(_.port).max
 }
 
-class RFArbiterBundle(var rdCfg: Option[RdConfig], pregWidth: Int, numBank: Int = 1)(implicit p: Parameters) extends Bundle {
+class RFArbiterBundle(val rdCfg: Option[RdConfig], pregWidth: Int, numBank: Int = 1)(implicit p: Parameters) extends Bundle {
   val bankValidVec = Option.when(numBank > 1)(Vec(numBank, Bool()))
   val addr       = UInt(pregWidth.W)
   val robIdx     = new RobPtr

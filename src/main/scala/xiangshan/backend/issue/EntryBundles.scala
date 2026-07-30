@@ -243,8 +243,8 @@ object EntryBundles extends HasCircularQueuePtrHelper {
       val wakeUpFromVl = VecInit(commonIn.wakeUpFromWB.filter(_.bits.dataConfig.isInstanceOf[VlData]).map{ bundle =>
         bundle.bits.wakeUpVl((status.srcStatusVl.get.psrc, SrcType.vp), bundle.valid)
       })
-      var intSchdVlWbPort = p(XSCoreParamsKey).intSchdVlWbPort
-      var vfSchdVlWbPort = p(XSCoreParamsKey).vfSchdVlWbPort
+      val intSchdVlWbPort = p(XSCoreParamsKey).intSchdVlWbPort
+      val vfSchdVlWbPort = p(XSCoreParamsKey).vfSchdVlWbPort
       // int wb is first bit of vlwb, which is after vfwb and v0wb
       common.vlWakeupByIntWb  := wakeUpFromVl(intSchdVlWbPort)
       // vf wb is second bit of wb

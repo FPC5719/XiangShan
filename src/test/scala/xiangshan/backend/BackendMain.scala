@@ -1,6 +1,5 @@
 package xiangshan.backend
 
-import freechips.rocketchip.diplomacy.LazyModule
 import top.{ArgParser, BaseConfig, Generator}
 import xiangshan.backend.regfile.IntPregParams
 import xiangshan.{XSCoreParameters, XSCoreParamsKey, XSTileKey}
@@ -15,13 +14,10 @@ object BackendMain extends App {
   })
 
   val backendParams = defaultConfig(XSCoreParamsKey).backendParams
-  val backend = LazyModule(new Backend(backendParams)(defaultConfig))
-
   Generator.execute(
     firrtlOpts :+ "--full-stacktrace" :+ "--target-dir" :+ "backend",
-    backend.module,
+    new Backend(backendParams)(defaultConfig),
     firtoolOpts
   )
   println("done")
 }
-

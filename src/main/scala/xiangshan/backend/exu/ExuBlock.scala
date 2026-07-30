@@ -3,7 +3,6 @@ package xiangshan.backend.exu
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import xiangshan.backend.fu.{CSRFileIO, FenceIO}
 import xiangshan.backend.Bundles._
 import xiangshan.backend.issue.SchdBlockParams

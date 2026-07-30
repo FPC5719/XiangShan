@@ -58,9 +58,9 @@ class indexedLSNumOfUopTable() extends Module {
   var combVemulNf : Seq[(Int, Int, Int, Int)] = Seq()
   for (emul <- 0 until 4) {
     for (lmul <- 0 until 4) {
-      var emul_val = 1 << emul
-      var lmul_val = 1 << lmul
-      var mul_max = if (emul_val > lmul_val) emul_val else lmul_val
+      val emul_val = 1 << emul
+      val lmul_val = 1 << lmul
+      val mul_max = if (emul_val > lmul_val) emul_val else lmul_val
       // nf = 0, number of uop = Max(lmul, emul)
       if ((1 << lmul) <= 8) {    // indexed load/store must ensure that the lmul * nf is less or equal to 8
         combVemulNf :+= (emul, lmul, 0, mul_max)
@@ -69,7 +69,7 @@ class indexedLSNumOfUopTable() extends Module {
       }
       // nf > 0, number of uop = Max(lmul * nf, emul)
       for (nf <- 1 until 8) {
-        var uop_num = if (lmul_val * (nf + 1) > emul_val) lmul_val * (nf + 1) else emul_val
+        val uop_num = if (lmul_val * (nf + 1) > emul_val) lmul_val * (nf + 1) else emul_val
         if (lmul_val * (nf + 1) <= 8) {    // indexed load/store must ensure that the lmul * nf is less or equal to 8
           combVemulNf :+= (emul, lmul, nf, uop_num)
         } else {

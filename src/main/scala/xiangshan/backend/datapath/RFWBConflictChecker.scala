@@ -29,7 +29,7 @@ case class RFWBCollideCheckerParams (
   def portMax = filteredCfgs.flatten.map(_.port).max
 }
 
-class RFWBCollideCheckerBundle(var wbCfg: Option[PregWB], pregWidth: Int) extends Bundle {
+class RFWBCollideCheckerBundle(val wbCfg: Option[PregWB], pregWidth: Int) extends Bundle {
 
   def this(wbCfg_ : PregWB, pregWidth_ : Int) = this(Some(wbCfg_), pregWidth_)
 
