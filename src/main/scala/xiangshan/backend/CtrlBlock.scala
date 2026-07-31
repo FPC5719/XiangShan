@@ -86,7 +86,8 @@ class CtrlBlock(val params: BackendParams)(implicit val p: Parameters) extends M
   val lsqEnqCtrl = Module(new LsqEnqCtrl)
   private def hasRen: Boolean = true
   private val pcMem = Module(new SyncDataModuleTemplate(PrunedAddr(VAddrBits), FtqSize, numPcMemRead, 1, "BackendPC", hasRen = hasRen))
-  private val rob = Module(new Rob(params))
+  // private val rob = Module(new Rob(params))
+  private val rob = ModuleCache(new Rob(params))
   private val memCtrl = Module(new MemCtrl(params))
 
   private val disableFusion = decode.io.csrCtrl.singlestep || !decode.io.csrCtrl.fusion_enable
@@ -875,10 +876,12 @@ class CtrlBlock(val params: BackendParams)(implicit val p: Parameters) extends M
   io.perfInfo.ctrlInfo.fpdqFull := false.B
   io.perfInfo.ctrlInfo.lsdqFull := false.B
 
-  val perfEvents = Seq(decode, rename, dispatch, rob).flatMap(_.getPerfEvents)
+  // val perfEvents = Seq(decode, rename, dispatch, rob).flatMap(_.getPerfEvents)
+  val perfEvents = Seq()
   generatePerfEvent()
 
-  val criticalErrors = rob.getCriticalErrors
+  // val criticalErrors = rob.getCriticalErrors
+  val criticalErrors = Seq()
   generateCriticalErrors()
 }
 

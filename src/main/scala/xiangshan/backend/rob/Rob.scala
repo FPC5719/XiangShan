@@ -47,8 +47,10 @@ import yunsuan.VfaluType
 import xiangshan.backend.rob.RobBundles._
 import xiangshan.backend.trace._
 import chisel3.experimental.BundleLiterals._
+import chisel3.experimental.hierarchy.{instantiable, public}
 import chisel3.util.experimental.decode.TruthTable
 
+@instantiable
 class Rob(val params: BackendParams)(implicit val p: Parameters) extends Module
   with HasXSParameter with HasCircularQueuePtrHelper with HasPerfEvents with HasCriticalErrors {
   implicit private val backendParamsImplicit: BackendParams = params
@@ -57,7 +59,7 @@ class Rob(val params: BackendParams)(implicit val p: Parameters) extends Module
   private val StaCnt = params.StaCnt
   private val HyuCnt = params.HyuCnt
 
-  val io = IO(new Bundle() {
+  @public val io = IO(new Bundle() {
     val hartId = Input(UInt(hartIdLen.W))
     val redirect = Input(Valid(new Redirect))
     val enq = new RobEnqIO
