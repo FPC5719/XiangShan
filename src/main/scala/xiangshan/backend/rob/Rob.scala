@@ -51,16 +51,15 @@ import chisel3.experimental.BundleLiterals._
 import chisel3.util.experimental.decode.TruthTable
 import xiangshan.TopDownCounters._
 import xiangshan.backend.dispatch._
-import chisel3.experimental.cacheable._
 
-object Rob {
-  implicit object Key extends CacheableKey[Rob] {}
+class Rob(params: BackendParams)(implicit p: Parameters) extends LazyModule with HasXSParameter {
+  override def shouldBeInlined: Boolean = false
+
+  lazy val module = new RobImp(this)(p, params)
 }
 
-class Rob(params: BackendParams)(implicit val p: Parameters) extends Module
-  with HasXSParameter with HasCircularQueuePtrHelper with HasPerfEvents with HasCriticalErrors with CacheableModule {
-
-  implicit val implParams: BackendParams = params
+class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendParams) extends LazyModuleImp(wrapper)
+  with HasXSParameter with HasCircularQueuePtrHelper with HasPerfEvents with HasCriticalErrors {
 
   private val LduCnt = params.LduCnt
   private val StaCnt = params.StaCnt
@@ -148,8 +147,6 @@ class Rob(params: BackendParams)(implicit val p: Parameters) extends Module
       val pc     = Output(UInt(VAddrBits.W))
     })
   })
-
-  protected def buildModule(): Unit = {
 
   val exuWBs: Seq[ValidIO[WriteBackRobBundle]] = io.exuWriteback
   val vldWBs: Seq[ValidIO[WriteBackRobBundle]] = io.exuWriteback.filter(_.bits.params.hasVLoadFu).toSeq
@@ -422,8 +419,8 @@ class Rob(params: BackendParams)(implicit val p: Parameters) extends Module
     sink.bits := source.bits
   }
 
-  val commitIsVTypeVec = VecInit(io.commits.commitValid.zip(io.commits.info).map { case (valid, info) => io.commits.isCommit && valid && info.needVTB })
-  val walkIsVTypeVec = VecInit(io.commits.walkValid.zip(walkInfo).map { case (valid, info) => io.commits.isWalk && valid && info.needVTB })
+  private val commitIsVTypeVec = VecInit(io.commits.commitValid.zip(io.commits.info).map { case (valid, info) => io.commits.isCommit && valid && info.needVTB })
+  private val walkIsVTypeVec = VecInit(io.commits.walkValid.zip(walkInfo).map { case (valid, info) => io.commits.isWalk && valid && info.needVTB })
   vtypeBuffer.io.fromRob.commitSize := PopCount(commitIsVTypeVec)
   vtypeBuffer.io.fromRob.walkSize := PopCount(walkIsVTypeVec)
   vtypeBuffer.io.snpt := io.snpt
@@ -1046,7 +1043,7 @@ class Rob(params: BackendParams)(implicit val p: Parameters) extends Module
   val enqRobIdxSeq = io.enq.req.map(req => req.bits.robIdx.value)
   val enqUopNumVec = VecInit(io.enq.req.map(req => req.bits.numUops))
   val enqWBNumVec = VecInit(io.enq.req.map(req => req.bits.numWB))
-  val enqWriteStdVec = VecInit(io.enq.req.map(req => req.bits.stdwriteNeed))
+  private val enqWriteStdVec = VecInit(io.enq.req.map(req => req.bits.stdwriteNeed))
 
   val fflags_wb = fflagsWBs
   val vxsat_wb = vxsatWBs
@@ -1373,8 +1370,8 @@ class Rob(params: BackendParams)(implicit val p: Parameters) extends Module
   XSPerfAccumulate("walkInstr", Mux(io.commits.isWalk, PopCount(io.commits.walkValid), 0.U))
   XSPerfAccumulate("walkCycleTotal", state === s_walk)
   XSPerfAccumulate("waitRabWalkEnd", state === s_walk && walkFinished && !rab.io.status.walkEnd)
-  val walkCycle = RegInit(0.U(8.W))
-  val waitRabWalkCycle = RegInit(0.U(8.W))
+  private val walkCycle = RegInit(0.U(8.W))
+  private val waitRabWalkCycle = RegInit(0.U(8.W))
   walkCycle := Mux(io.redirect.valid, 0.U, Mux(state === s_walk, walkCycle + 1.U, 0.U))
   waitRabWalkCycle := Mux(state === s_walk && walkFinished, 0.U, Mux(state === s_walk, walkCycle + 1.U, 0.U))
 
@@ -1382,9 +1379,9 @@ class Rob(params: BackendParams)(implicit val p: Parameters) extends Module
   XSPerfHistogram("walkRabExtraCycleHist", waitRabWalkCycle, state === s_walk && walkFinished && rab.io.status.walkEnd, 0, 32)
   XSPerfHistogram("walkTotalCycleHist", walkCycle, state === s_walk && state_next === s_idle, 0, 32)
 
-  val deqNotWritebacked = robEntries(deqPtr.value).valid && !robEntries(deqPtr.value).isWritebacked
-  val deqUopNotWritebacked = robEntries(deqPtr.value).valid && !robEntries(deqPtr.value).isUopWritebacked
-  val deqHeadInfoFuType = robEntries(deqPtr.value).debug_fuType.getOrElse(0.U.asTypeOf(FuType()))
+  private val deqNotWritebacked = robEntries(deqPtr.value).valid && !robEntries(deqPtr.value).isWritebacked
+  private val deqUopNotWritebacked = robEntries(deqPtr.value).valid && !robEntries(deqPtr.value).isUopWritebacked
+  private val deqHeadInfoFuType = robEntries(deqPtr.value).debug_fuType.getOrElse(0.U.asTypeOf(FuType()))
   val deqUopCommitType = robEntries(deqPtr.value).debug_commitType.getOrElse(0.U)
 
   XSPerfAccumulate("waitAluCycle", deqNotWritebacked && deqHeadInfoFuType === FuType.alu.U)
@@ -1854,6 +1851,28 @@ class Rob(params: BackendParams)(implicit val p: Parameters) extends Module
   val commitLoadVec = VecInit(commitLoadValid)
   val commitBranchVec = VecInit(commitBranchValid)
   val commitStoreVec = VecInit(io.commits.commitValid.zip(commitIsStore).map { case (v, t) => v && t })
+  val perfEvents = Seq(
+    ("rob_interrupt_num      ", io.flushOut.valid && intrEnable),
+    ("rob_exception_num      ", io.flushOut.valid && deqHasException),
+    ("rob_flush_pipe_num     ", io.flushOut.valid && isFlushPipe),
+    ("rob_replay_inst_num    ", io.flushOut.valid && isFlushPipe && deqHasReplayInst),
+    ("rob_commitUop          ", ifCommit(commitCnt)),
+    ("rob_commitInstr        ", ifCommitReg(trueCommitCnt)),
+    ("rob_commitInstrFused   ", ifCommitReg(fuseCommitCnt)),
+    ("rob_commitInstrLoad    ", ifCommitReg(PopCount(RegEnable(commitLoadVec, isCommit)))),
+    ("rob_commitInstrBranch  ", ifCommitReg(PopCount(RegEnable(commitBranchVec, isCommit)))),
+    ("rob_commitInstrStore   ", ifCommitReg(PopCount(RegEnable(commitStoreVec, isCommit)))),
+    ("rob_walkInstr          ", Mux(io.commits.isWalk, PopCount(io.commits.walkValid), 0.U)),
+    ("rob_walkCycle          ", (state === s_walk)),
+    ("rob_1_4_valid          ", numValidEntries <= (RobSize / 4).U),
+    ("rob_2_4_valid          ", numValidEntries > (RobSize / 4).U && numValidEntries <= (RobSize / 2).U),
+    ("rob_3_4_valid          ", numValidEntries > (RobSize / 2).U && numValidEntries <= (RobSize * 3 / 4).U),
+    ("rob_4_4_valid          ", numValidEntries > (RobSize * 3 / 4).U),
+    ("BRANCH_JUMP            ", brhJump),
+    ("BR_MIS_PRED            ", misPred),
+    ("TOTAL_FLUSH            ", io.redirect.valid)
+  )
+  generatePerfEvent()
 
   // max commit-stuck cycle
   val mmioBusy = io.lsq.mmioBusy // lsq know uncache request is rob head
@@ -1866,6 +1885,11 @@ class Rob(params: BackendParams)(implicit val p: Parameters) extends Module
   }
   // check if stuck > 2^maxCommitStuckCycle
   val commitStuck_overflow = commitStuckCycle.andR && (if (wfiResume) true.B else (!hasWFI))
+  val criticalErrors = Seq(
+    ("rob_commit_stuck  ", commitStuck_overflow),
+  )
+  generateCriticalErrors()
+
 
   // dontTouch for debug
   if (backendParams.debugEn) {
@@ -1912,76 +1936,4 @@ class Rob(params: BackendParams)(implicit val p: Parameters) extends Module
   if (env.EnableDifftest || env.FullBasicDiff) {
     io.commits.info.map(info => dontTouch(info.debug_pc.get))
   }
-
-  perfInterruptNum := io.flushOut.valid && intrEnable
-  perfExceptionNum := io.flushOut.valid && deqHasException
-  perfFlushPipeNum := io.flushOut.valid && isFlushPipe
-  perfReplayInstNum := io.flushOut.valid && isFlushPipe && deqHasReplayInst
-  perfCommitUop := ifCommit(commitCnt)
-  perfCommitInstr := ifCommitReg(trueCommitCnt)
-  perfCommitInstrFused := ifCommitReg(fuseCommitCnt)
-  perfCommitInstrLoad := ifCommitReg(PopCount(RegEnable(commitLoadVec, isCommit)))
-  perfCommitInstrBranch := ifCommitReg(PopCount(RegEnable(commitBranchVec, isCommit)))
-  perfCommitInstrStore := ifCommitReg(PopCount(RegEnable(commitStoreVec, isCommit)))
-  perfWalkInstr := Mux(io.commits.isWalk, PopCount(io.commits.walkValid), 0.U)
-  perfWalkCycle := state === s_walk
-  perfOneQuarterValid := numValidEntries <= (RobSize / 4).U
-  perfTwoQuartersValid := numValidEntries > (RobSize / 4).U && numValidEntries <= (RobSize / 2).U
-  perfThreeQuartersValid := numValidEntries > (RobSize / 2).U && numValidEntries <= (RobSize * 3 / 4).U
-  perfFourQuartersValid := numValidEntries > (RobSize * 3 / 4).U
-  perfBranchJump := brhJump
-  perfBranchMispred := misPred
-  perfTotalFlush := io.redirect.valid
-  criticalCommitStuck := commitStuck_overflow
-
-  }
-
-  private val perfInterruptNum = Wire(UInt())
-  private val perfExceptionNum = Wire(UInt())
-  private val perfFlushPipeNum = Wire(UInt())
-  private val perfReplayInstNum = Wire(UInt())
-  private val perfCommitUop = Wire(UInt())
-  private val perfCommitInstr = Wire(UInt())
-  private val perfCommitInstrFused = Wire(UInt())
-  private val perfCommitInstrLoad = Wire(UInt())
-  private val perfCommitInstrBranch = Wire(UInt())
-  private val perfCommitInstrStore = Wire(UInt())
-  private val perfWalkInstr = Wire(UInt())
-  private val perfWalkCycle = Wire(UInt())
-  private val perfOneQuarterValid = Wire(UInt())
-  private val perfTwoQuartersValid = Wire(UInt())
-  private val perfThreeQuartersValid = Wire(UInt())
-  private val perfFourQuartersValid = Wire(UInt())
-  private val perfBranchJump = Wire(UInt())
-  private val perfBranchMispred = Wire(UInt())
-  private val perfTotalFlush = Wire(UInt())
-  private val criticalCommitStuck = Wire(Bool())
-
-  val perfEvents = Seq(
-    ("rob_interrupt_num      ", perfInterruptNum),
-    ("rob_exception_num      ", perfExceptionNum),
-    ("rob_flush_pipe_num     ", perfFlushPipeNum),
-    ("rob_replay_inst_num    ", perfReplayInstNum),
-    ("rob_commitUop          ", perfCommitUop),
-    ("rob_commitInstr        ", perfCommitInstr),
-    ("rob_commitInstrFused   ", perfCommitInstrFused),
-    ("rob_commitInstrLoad    ", perfCommitInstrLoad),
-    ("rob_commitInstrBranch  ", perfCommitInstrBranch),
-    ("rob_commitInstrStore   ", perfCommitInstrStore),
-    ("rob_walkInstr          ", perfWalkInstr),
-    ("rob_walkCycle          ", perfWalkCycle),
-    ("rob_1_4_valid          ", perfOneQuarterValid),
-    ("rob_2_4_valid          ", perfTwoQuartersValid),
-    ("rob_3_4_valid          ", perfThreeQuartersValid),
-    ("rob_4_4_valid          ", perfFourQuartersValid),
-    ("BRANCH_JUMP            ", perfBranchJump),
-    ("BR_MIS_PRED            ", perfBranchMispred),
-    ("TOTAL_FLUSH            ", perfTotalFlush)
-  )
-  generatePerfEvent()
-
-  val criticalErrors = Seq(
-    ("rob_commit_stuck  ", criticalCommitStuck),
-  )
-  generateCriticalErrors()
 }
