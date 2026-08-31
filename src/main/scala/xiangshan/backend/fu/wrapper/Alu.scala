@@ -2,12 +2,13 @@ package xiangshan.backend.fu.wrapper
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable._
 import xiangshan.backend.fu.{AluDataModule, PipedFuncUnit}
 import xiangshan.backend.fu.FuConfig
 import utility.{SignExt, ZeroExt}
 
 class Alu(cfg: FuConfig)(implicit p: Parameters) extends PipedFuncUnit(cfg) {
-  private val aluModule = Module(new AluDataModule(cfg.aluNeedPc))
+  private val aluModule = CacheableModule(new AluDataModule(cfg.aluNeedPc), cfg.aluNeedPc)
 
   private val flushed = io.in.bits.ctrl.robIdx.needFlush(io.flush)
 

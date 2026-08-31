@@ -20,6 +20,7 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import chisel3.util.experimental.decode.TruthTable
+import chisel3.experimental.cacheable._
 import utility.{LookupTree, LookupTreeDefault, ParallelMux, SignExt, XSDebug, ZeroExt}
 import xiangshan._
 
@@ -172,13 +173,22 @@ class ConditionalZeroModule(implicit p: Parameters) extends XSModule {
   io.condRes := Mux(use_zero, 0.U, io.value)
 }
 
-class AluDataModule(val aluNeedPc: Boolean = false)(implicit p: Parameters) extends XSModule {
+object AluDataModule {
+  implicit object Key extends CacheableKey[AluDataModule] {
+    override def cacheKey(args: Seq[Any]): Any = args.headOption.getOrElse(false)
+  }
+}
+
+class AluDataModule(val aluNeedPc: Boolean = false)(implicit p: Parameters) extends XSModule with CacheableModule{
   val io = IO(new Bundle() {
     val pc = Input(UInt(XLEN.W))
     val src = Vec(2, Input(UInt(XLEN.W)))
     val func = Input(FuOpType())
     val result = Output(UInt(XLEN.W))
   })
+
+  protected def buildModule(): Unit = {
+
   val (src1, src2, func, pc) = (io.src(0), io.src(1), io.func, io.pc)
 
   val isAddw       = ALUOpType.isAddw(func)
@@ -451,4 +461,6 @@ class AluDataModule(val aluNeedPc: Boolean = false)(implicit p: Parameters) exte
 
   XSDebug(func === ALUOpType.lui32addw, p"[alu] func lui32w: src1=${Hexadecimal(src1)} src2=${Hexadecimal(src2)} alures=${Hexadecimal(aluRes)}\n")
   XSDebug(func === ALUOpType.lui32addw, p"[alu] func lui32w: add_src1=${Hexadecimal(addwModule.io.srcw)} add_src2=${Hexadecimal(addwModule.io.src)} addres=${Hexadecimal(addw)}\n")
+
+  }
 }
