@@ -26,6 +26,7 @@ package xiangshan.backend.rob
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 import difftest._
@@ -170,7 +171,7 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
 
   println(s"Rob: size $RobSize, numExuWbPorts: $numExuWbPorts, commitwidth: $CommitWidth")
 
-  val rab = Module(new RenameBuffer(RabSize))
+  val rab = CacheableModule(new RenameBuffer(RabSize), RabSize)
   val vtypeBuffer = Module(new VTypeBuffer(VTypeBufferSize))
   val bankNum = 8
   assert(RobSize % bankNum == 0, "RobSize % bankNum must be 0")

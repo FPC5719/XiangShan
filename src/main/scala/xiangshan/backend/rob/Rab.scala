@@ -2,6 +2,7 @@ package xiangshan.backend.rob
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.{CacheableKey, CacheableModule}
 import chisel3.util._
 import xiangshan._
 import utils._
@@ -31,7 +32,14 @@ class RenameBufferEntry(implicit p: Parameters) extends XSBundle {
   val robIdx = OptionWrapper(!env.FPGAPlatform, new RobPtr)
 }
 
-class RenameBuffer(size: Int)(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper {
+object RenameBuffer {
+  implicit object Key extends CacheableKey[RenameBuffer] {
+    override def cacheKey(args: Seq[Any]): Any = args.headOption.getOrElse(0)
+  }
+}
+
+class RenameBuffer(size: Int)(implicit p: Parameters)
+    extends XSModule with HasCircularQueuePtrHelper with CacheableModule {
   val io = IO(new Bundle {
     val redirect = Input(ValidIO(new Bundle {
     }))
@@ -62,32 +70,33 @@ class RenameBuffer(size: Int)(implicit p: Parameters) extends XSModule with HasC
     val toVecExcpMod = Output(new RabToVecExcpMod)
   })
 
+  protected def buildModule(): Unit = {
   // alias
-  private val snptSelect = io.snpt.snptSelect
+  val snptSelect = io.snpt.snptSelect
 
   // pointer
-  private val enqPtrVec = RegInit(VecInit.tabulate(RenameWidth)(idx => RenameBufferPtr(flag = false, idx)))
-  private val enqPtr = enqPtrVec.head
-  private val enqPtrOH = RegInit(1.U(size.W))
-  private val enqPtrOHShift = CircularShift(enqPtrOH)
+  val enqPtrVec = RegInit(VecInit.tabulate(RenameWidth)(idx => RenameBufferPtr(flag = false, idx)))
+  val enqPtr = enqPtrVec.head
+  val enqPtrOH = RegInit(1.U(size.W))
+  val enqPtrOHShift = CircularShift(enqPtrOH)
   // may shift [0, RenameWidth] steps
-  private val enqPtrOHVec = VecInit.tabulate(RenameWidth + 1)(enqPtrOHShift.left)
-  private val enqPtrVecNext = Wire(enqPtrVec.cloneType)
+  val enqPtrOHVec = VecInit.tabulate(RenameWidth + 1)(enqPtrOHShift.left)
+  val enqPtrVecNext = Wire(enqPtrVec.cloneType)
 
-  private val deqPtrVec = RegInit(VecInit.tabulate(RabCommitWidth)(idx => RenameBufferPtr(flag = false, idx)))
-  private val deqPtr = deqPtrVec.head
-  private val deqPtrOH = RegInit(1.U(size.W))
-  private val deqPtrOHShift = CircularShift(deqPtrOH)
-  private val deqPtrOHVec = VecInit.tabulate(RabCommitWidth + 1)(deqPtrOHShift.left)
-  private val deqPtrVecNext = Wire(deqPtrVec.cloneType)
+  val deqPtrVec = RegInit(VecInit.tabulate(RabCommitWidth)(idx => RenameBufferPtr(flag = false, idx)))
+  val deqPtr = deqPtrVec.head
+  val deqPtrOH = RegInit(1.U(size.W))
+  val deqPtrOHShift = CircularShift(deqPtrOH)
+  val deqPtrOHVec = VecInit.tabulate(RabCommitWidth + 1)(deqPtrOHShift.left)
+  val deqPtrVecNext = Wire(deqPtrVec.cloneType)
   XSError(deqPtr.toOH =/= deqPtrOH, p"wrong one-hot reg between $deqPtr and $deqPtrOH")
 
-  private val walkPtr = Reg(new RenameBufferPtr)
-  private val walkPtrOH = UIntToOHSeq(walkPtr.value, walkPtr.entries)
-  private val walkPtrOHSeq = Seq.tabulate(RabCommitWidth + 1)(CircularShift(walkPtrOH).left)
-  private val walkPtrNext = Wire(new RenameBufferPtr)
+  val walkPtr = Reg(new RenameBufferPtr)
+  val walkPtrOH = UIntToOHSeq(walkPtr.value, walkPtr.entries)
+  val walkPtrOHSeq = Seq.tabulate(RabCommitWidth + 1)(CircularShift(walkPtrOH).left)
+  val walkPtrNext = Wire(new RenameBufferPtr)
 
-  private val walkPtrSnapshots = SnapshotGenerator(enqPtr, io.snpt.snptEnq, io.snpt.snptDeq, io.redirect.valid, io.snpt.flushVec)
+  val walkPtrSnapshots = SnapshotGenerator(enqPtr, io.snpt.snptEnq, io.snpt.snptDeq, io.redirect.valid, io.snpt.flushVec)
 
   val vcfgPtrOH = RegInit(1.U(size.W))
   val vcfgPtrOHShift = CircularShift(vcfgPtrOH)
@@ -99,16 +108,16 @@ class RenameBuffer(size: Int)(implicit p: Parameters) extends XSModule with HasC
 
   val vecLoadExcp = Reg(io.fromRob.vecLoadExcp.cloneType)
 
-  private val maxLMUL = 8
-  private val vdIdxWidth = log2Up(maxLMUL + 1)
+  val maxLMUL = 8
+  val vdIdxWidth = log2Up(maxLMUL + 1)
   val currentVdIdx = Reg(UInt(vdIdxWidth.W)) // store 0~8
 
   val s_idle :: s_special_walk :: s_walk :: Nil = Enum(3)
   val state = RegInit(s_idle)
   val stateNext = WireInit(state) // otherwise keep state value
 
-  private val robWalkEndReg = RegInit(false.B)
-  private val robWalkEnd = io.fromRob.walkEnd || robWalkEndReg
+  val robWalkEndReg = RegInit(false.B)
+  val robWalkEnd = io.fromRob.walkEnd || robWalkEndReg
 
   when(io.redirect.valid) {
     robWalkEndReg := false.B
@@ -214,11 +223,11 @@ class RenameBuffer(size: Int)(implicit p: Parameters) extends XSModule with HasC
     io.commits.robIdx.foreach(_(i) := Mux(state === s_idle || state === s_special_walk, commitCandidates(i).robIdx.get, walkCandidates(i).robIdx.get))
   }
 
-  private val walkEndNext = walkSizeNxt === 0.U
-  private val commitEndNext = commitSizeNxt === 0.U
-  private val specialWalkEndNext = specialWalkSize <= RabCommitWidth.U
+  val walkEndNext = walkSizeNxt === 0.U
+  val commitEndNext = commitSizeNxt === 0.U
+  val specialWalkEndNext = specialWalkSize <= RabCommitWidth.U
   // when robWalkEndReg is 1, walkSize donot increase and decrease RabCommitWidth per Cycle
-  private val walkEndNextCycle = (robWalkEndReg || io.fromRob.walkEnd && io.fromRob.walkSize === 0.U) && (walkSize <= RabCommitWidth.U)
+  val walkEndNextCycle = (robWalkEndReg || io.fromRob.walkEnd && io.fromRob.walkSize === 0.U) && (walkSize <= RabCommitWidth.U)
   // change state
   state := stateNext
   when(io.redirect.valid) {
@@ -299,4 +308,5 @@ class RenameBuffer(size: Int)(implicit p: Parameters) extends XSModule with HasC
   XSPerfAccumulate("disallow_enq_cycle", !allowEnqueue)
   XSPerfAccumulate("disallow_enq_full_cycle", numValidEntries + enqCount > (size - RenameWidth).U)
   XSPerfAccumulate("disallow_enq_not_idle_cycle", state =/= s_idle)
+  }
 }
