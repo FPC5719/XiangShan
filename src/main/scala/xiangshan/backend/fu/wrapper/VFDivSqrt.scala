@@ -2,6 +2,7 @@ package xiangshan.backend.fu.wrapper
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import utility.XSError
 import xiangshan.backend.fu.FuConfig
@@ -26,10 +27,10 @@ class VFDivSqrt(cfg: FuConfig)(implicit p: Parameters) extends VecNonPipedFuncUn
 
   // modules
   private val vfdivs = Seq.fill(numVecModule)(Module(new VectorFloatDivider))
-  private val vs2Split = Module(new VecDataSplitModule(dataWidth, dataWidthOfDataModule))
-  private val vs1Split = Module(new VecDataSplitModule(dataWidth, dataWidthOfDataModule))
-  private val oldVdSplit  = Module(new VecDataSplitModule(dataWidth, dataWidthOfDataModule))
-  private val mgu = Module(new Mgu(dataWidth))
+  private val vs2Split = CacheableModule(new VecDataSplitModule(dataWidth, dataWidthOfDataModule), dataWidth, dataWidthOfDataModule)
+  private val vs1Split = CacheableModule(new VecDataSplitModule(dataWidth, dataWidthOfDataModule), dataWidth, dataWidthOfDataModule)
+  private val oldVdSplit  = CacheableModule(new VecDataSplitModule(dataWidth, dataWidthOfDataModule), dataWidth, dataWidthOfDataModule)
+  private val mgu = CacheableModule(new Mgu(dataWidth), dataWidth, false)
 
   /**
     * In connection of [[vs2Split]], [[vs1Split]] and [[oldVdSplit]]

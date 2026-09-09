@@ -172,7 +172,7 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
   println(s"Rob: size $RobSize, numExuWbPorts: $numExuWbPorts, commitwidth: $CommitWidth")
 
   val rab = CacheableModule(new RenameBuffer(RabSize), RabSize)
-  val vtypeBuffer = Module(new VTypeBuffer(VTypeBufferSize))
+  val vtypeBuffer = CacheableModule(new VTypeBuffer(VTypeBufferSize), VTypeBufferSize)
   val bankNum = 8
   assert(RobSize % bankNum == 0, "RobSize % bankNum must be 0")
   val robEntries = RegInit(VecInit.fill(RobSize)((new RobEntryBundle).Lit(_.valid -> false.B)))

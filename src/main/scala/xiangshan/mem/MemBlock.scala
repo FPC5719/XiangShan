@@ -17,6 +17,7 @@
 package xiangshan.mem
 
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import xscache.coupledL2.{PrefetchCtrlFromCore, PrefetchRecv}
 import freechips.rocketchip.diplomacy._
@@ -716,7 +717,7 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   val pmp = Module(new PMP())
   pmp.io.distribute_csr <> csrCtrl.distribute_csr
 
-  val pmp_checkers = Seq.fill(DTlbSize)(Module(new PMPChecker(4, leaveHitMux = true)))
+  val pmp_checkers = Seq.fill(DTlbSize)(CacheableModule(new PMPChecker(4, leaveHitMux = true), 4, false, true, true))
   val pmp_check = pmp_checkers.map(_.io)
   for ((p,d) <- pmp_check zip dtlb_pmps) {
     if (HasBitmapCheck) {

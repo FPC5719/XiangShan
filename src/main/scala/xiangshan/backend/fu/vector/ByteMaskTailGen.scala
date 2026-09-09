@@ -2,6 +2,7 @@ package xiangshan.backend.fu.vector
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.{CacheableKey, CacheableModule}
 import chisel3.util._
 import xiangshan.backend.fu.vector.Bundles.{VSew, Vl}
 import xiangshan.backend.fu.vector.utils.{MaskExtractor, UIntToContLow0s, UIntToContLow1s}
@@ -11,10 +12,10 @@ import yunsuan.util.LookupTree
 
 
 class ByteMaskTailGenIO(vlen: Int)(implicit p: Parameters) extends Bundle {
-  private val numBytes = vlen / 8
-  private val maxVLMUL = 8
-  private val maxVLMAX = 8 * 16 // TODO: parameterize this
-  private val elemIdxWidth = log2Up(maxVLMAX + 1)
+  val numBytes = vlen / 8
+  val maxVLMUL = 8
+  val maxVLMAX = 8 * 16 // TODO: parameterize this
+  val elemIdxWidth = log2Up(maxVLMAX + 1)
   println(s"elemIdxWidth: $elemIdxWidth")
 
   val in = Input(new Bundle {
@@ -43,40 +44,48 @@ class ByteMaskTailGenIO(vlen: Int)(implicit p: Parameters) extends Bundle {
   })
 }
 
-class ByteMaskTailGen(vlen: Int)(implicit p: Parameters) extends Module {
+object ByteMaskTailGen {
+  implicit object Key extends CacheableKey[ByteMaskTailGen] {
+    override def cacheKey(args: Seq[Any]): Any = args.headOption.getOrElse(0)
+  }
+}
+
+class ByteMaskTailGen(vlen: Int)(implicit p: Parameters) extends Module with CacheableModule {
   require(isPow2(vlen))
 
-  private val numBytes = vlen / 8
-  private val byteWidth = log2Up(numBytes) // vlen=128, numBytes=16, byteWidth=log2(16)=4
-  private val maxVLMUL = 8
-  private val maxVLMAX = 8 * 16 // TODO: parameterize this
-  private val elemIdxWidth = log2Up(maxVLMAX + 1)
+  val numBytes = vlen / 8
+  val byteWidth = log2Up(numBytes) // vlen=128, numBytes=16, byteWidth=log2(16)=4
+  val maxVLMUL = 8
+  val maxVLMAX = 8 * 16 // TODO: parameterize this
+  val elemIdxWidth = log2Up(maxVLMAX + 1)
 
   println(s"numBytes: ${numBytes}, byteWidth: ${byteWidth}")
 
   val io = IO(new ByteMaskTailGenIO(vlen))
 
-  private val eewOH = SewOH(io.in.vsew).oneHot
+  protected def buildModule(): Unit = {
 
-  private val startBytes = Mux1H(eewOH, Seq.tabulate(4)(x => io.in.begin(elemIdxWidth - 1 - x, 0) << x)).asUInt
-  private val vlBytes    = Mux1H(eewOH, Seq.tabulate(4)(x => io.in.end(elemIdxWidth - 1 - x, 0) << x)).asUInt
-  private val vdIdx      = io.in.vdIdx
+  val eewOH = SewOH(io.in.vsew).oneHot
 
-  private val prestartEn = UIntToContLow1s(startBytes, maxVLMAX)
-  private val bodyEn = UIntToContLow0s(startBytes, maxVLMAX) & UIntToContLow1s(vlBytes, maxVLMAX)
-  private val tailEn = UIntToContLow0s(vlBytes, maxVLMAX)
-  private val prestartEnInVd = LookupTree(vdIdx, (0 until maxVLMUL).map(i => i.U -> prestartEn((i+1)*numBytes - 1, i*numBytes)))
-  private val bodyEnInVd = LookupTree(vdIdx, (0 until maxVLMUL).map(i => i.U -> bodyEn((i+1)*numBytes - 1, i*numBytes)))
-  private val tailEnInVd = LookupTree(vdIdx, (0 until maxVLMUL).map(i => i.U -> tailEn((i+1)*numBytes - 1, i*numBytes)))
+  val startBytes = Mux1H(eewOH, Seq.tabulate(4)(x => io.in.begin(elemIdxWidth - 1 - x, 0) << x)).asUInt
+  val vlBytes    = Mux1H(eewOH, Seq.tabulate(4)(x => io.in.end(elemIdxWidth - 1 - x, 0) << x)).asUInt
+  val vdIdx      = io.in.vdIdx
 
-  private val maskEn = MaskExtractor(vlen)(io.in.maskUsed, io.in.vsew)
-  private val maskOffEn = (~maskEn).asUInt
-  private val maskAgnosticEn = Mux(io.in.vma, maskOffEn, 0.U) & bodyEnInVd
+  val prestartEn = UIntToContLow1s(startBytes, maxVLMAX)
+  val bodyEn = UIntToContLow0s(startBytes, maxVLMAX) & UIntToContLow1s(vlBytes, maxVLMAX)
+  val tailEn = UIntToContLow0s(vlBytes, maxVLMAX)
+  val prestartEnInVd = LookupTree(vdIdx, (0 until maxVLMUL).map(i => i.U -> prestartEn((i+1)*numBytes - 1, i*numBytes)))
+  val bodyEnInVd = LookupTree(vdIdx, (0 until maxVLMUL).map(i => i.U -> bodyEn((i+1)*numBytes - 1, i*numBytes)))
+  val tailEnInVd = LookupTree(vdIdx, (0 until maxVLMUL).map(i => i.U -> tailEn((i+1)*numBytes - 1, i*numBytes)))
 
-  private val tailAgnosticEn = Mux(io.in.vta, tailEnInVd, 0.U)
+  val maskEn = MaskExtractor(vlen)(io.in.maskUsed, io.in.vsew)
+  val maskOffEn = (~maskEn).asUInt
+  val maskAgnosticEn = Mux(io.in.vma, maskOffEn, 0.U) & bodyEnInVd
 
-  private val activeEn = Mux(io.in.begin >= io.in.end, 0.U(numBytes.W), bodyEnInVd & maskEn)
-  private val agnosticEn = Mux(io.in.begin >= io.in.end, 0.U(numBytes.W), maskAgnosticEn | tailAgnosticEn)
+  val tailAgnosticEn = Mux(io.in.vta, tailEnInVd, 0.U)
+
+  val activeEn = Mux(io.in.begin >= io.in.end, 0.U(numBytes.W), bodyEnInVd & maskEn)
+  val agnosticEn = Mux(io.in.begin >= io.in.end, 0.U(numBytes.W), maskAgnosticEn | tailAgnosticEn)
 
   // TODO: delete me later
   dontTouch(eewOH)
@@ -106,5 +115,5 @@ class ByteMaskTailGen(vlen: Int)(implicit p: Parameters) extends Module {
   io.debugOnly.maskAgnosticEn := maskAgnosticEn
   io.debugOnly.tailAgnosticEn := tailAgnosticEn
   io.debugOnly.agnosticEn := agnosticEn
+  }
 }
-

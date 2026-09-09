@@ -27,6 +27,7 @@
 
 package xiangshan.frontend
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import freechips.rocketchip.diplomacy.LazyModule
 import freechips.rocketchip.diplomacy.LazyModuleImp
@@ -157,7 +158,7 @@ class FrontendInlinedImp(outer: FrontendInlined) extends FrontendInlinedImpBase(
   private val pmp = Module(new PMP)
   pmp.io.distribute_csr := csrCtrl.distribute_csr
 
-  private val pmpChecker = VecInit(Seq.fill(coreParams.ipmpPortNum)(Module(new PMPChecker(sameCycle = true)).io))
+  private val pmpChecker = VecInit(Seq.fill(coreParams.ipmpPortNum)(CacheableModule(new PMPChecker(sameCycle = true), 3, true, false, true).io))
 
   private val pmpRequestor = icache.io.pmp
   require(pmpRequestor.length == coreParams.ipmpPortNum)

@@ -1,6 +1,7 @@
 package xiangshan.backend.decode
 
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import utility.PriorityMuxDefault
@@ -52,7 +53,7 @@ class VTypeGen(implicit p: Parameters) extends XSModule {
   }.map(instVType => VsetVType.fromInstVType(instVType))
 
   // generate vtype depending on instructions
-  private val vsetModuleVec = Seq.fill(DecodeWidth)(Module(new VsetModule(VSetRiWiCfg)))
+  private val vsetModuleVec = Seq.fill(DecodeWidth)(CacheableModule(new VsetModule(VSetRiWiCfg), VSetRiWiCfg.readOldVtype))
   for(i <- 0 until DecodeWidth) {
     vsetModuleVec(i).io.in.avl := 0.U
     vsetModuleVec(i).io.in.vtype := instVTypeVec(i)

@@ -2,6 +2,7 @@ package xiangshan.backend.fu.wrapper
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import utility.XSError
 import xiangshan.backend.fu.FuConfig
@@ -20,7 +21,7 @@ class VIDiv(cfg: FuConfig)(implicit p: Parameters) extends VecNonPipedFuncUnit(c
 
   // modules
   private val vidiv = Module(new VectorIdiv)
-  private val mgu = Module(new Mgu(dataWidth))
+  private val mgu = CacheableModule(new Mgu(dataWidth), dataWidth, false)
 
   private val thisRobIdx = Wire(new RobPtr)
   when(io.in.ready){

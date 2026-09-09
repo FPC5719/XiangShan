@@ -2,6 +2,7 @@ package xiangshan.backend.fu.wrapper
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import chisel3.util.experimental.decode._
 import utility.XSError
@@ -81,7 +82,7 @@ class VCVT(cfg: FuConfig)(implicit p: Parameters) extends VecPipedFuncUnit(cfg) 
 
   // modules
   private val vfcvt = Module(new VectorCvtTop(dataWidth, dataWidthOfDataModule))
-  private val mgu = Module(new Mgu(dataWidth))
+  private val mgu = CacheableModule(new Mgu(dataWidth), dataWidth, false)
 
   val vs2Vec = Wire(Vec(numVecModule, UInt(dataWidthOfDataModule.W)))
   vs2Vec := vs2.asTypeOf(vs2Vec)
@@ -251,5 +252,4 @@ class VectorCvtTop(vlen: Int, xlen: Int) extends Module{
     vectorCvt1.io.fflags(4,0) ## vectorCvt0.io.fflags(4,0)
   ))
 }
-
 

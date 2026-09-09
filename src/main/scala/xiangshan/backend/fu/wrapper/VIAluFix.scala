@@ -1,6 +1,7 @@
 package xiangshan.backend.fu.wrapper
 
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import chisel3.util.experimental.decode.TruthTable
 import org.chipsalliance.cde.config.Parameters
@@ -26,8 +27,8 @@ class VIAluFix(cfg: FuConfig)(implicit p: Parameters) extends VecPipedFuncUnit(c
   private val valid = io.in.valid
 
   // modules
-  private val vs2Split = Module(new VecDataSplitModule(dataWidth, dataWidthOfDataModule))
-  private val vs1Split = Module(new VecDataSplitModule(dataWidth, dataWidthOfDataModule))
+  private val vs2Split = CacheableModule(new VecDataSplitModule(dataWidth, dataWidthOfDataModule), dataWidth, dataWidthOfDataModule)
+  private val vs1Split = CacheableModule(new VecDataSplitModule(dataWidth, dataWidthOfDataModule), dataWidth, dataWidthOfDataModule)
   private val vIAluFixPoints = Seq.fill(numVecModule)(Module(new VIAluFixPoint(XLEN)))
   private val mgu = Module(new NewMgu(dataWidth))
   private val mgtu = Module(new Mgtu(dataWidth))

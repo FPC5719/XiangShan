@@ -20,6 +20,7 @@ package xiangshan.backend.fu.vector
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.{CacheableKey, CacheableModule}
 import chisel3.util._
 import chisel3.simulator.scalatest.ChiselSim
 import org.scalatest.flatspec.AnyFlatSpec
@@ -30,11 +31,19 @@ import xiangshan.backend.fu.vector.Bundles.{VSew, Vl}
 import xiangshan.backend.fu.vector.Utils.VecDataToMaskDataVec
 import yunsuan.vector._
 
-class Mgu(vlen: Int)(implicit p: Parameters) extends  Module {
-  private val numBytes = vlen / 8
-  private val byteWidth = log2Up(numBytes)
+object Mgu {
+  implicit object Key extends CacheableKey[Mgu] {
+    override def cacheKey(args: Seq[Any]): Any = args
+  }
+}
+
+class Mgu(vlen: Int, maskUsedFromLowBits: Boolean = false)(implicit p: Parameters) extends Module with CacheableModule {
+  val numBytes = vlen / 8
+  val byteWidth = log2Up(numBytes)
 
   val io = IO(new MguIO(vlen))
+
+  protected def buildModule(): Unit = {
 
   val in = io.in
   val out = io.out
@@ -43,98 +52,12 @@ class Mgu(vlen: Int)(implicit p: Parameters) extends  Module {
   val oldVd = in.oldVd
   val narrow = io.in.info.narrow
 
-  private val vdIdx = Mux(narrow, info.vdIdx(2, 1), info.vdIdx)
+  val vdIdx = Mux(narrow, info.vdIdx(2, 1), info.vdIdx)
 
-  private val maskTailGen = Module(new ByteMaskTailGen(vlen))
+  val maskTailGen = CacheableModule(new ByteMaskTailGen(vlen), vlen)
 
-  private val eewOH = SewOH(info.eew).oneHot
+  val eewOH = SewOH(info.eew).oneHot
 
-  private val vstartMapVdIdx = elemIdxMapVdIdx(info.vstart)(2, 0) // 3bits 0~7
-  private val vlMapVdIdx = elemIdxMapVdIdx(info.vl)(3, 0)         // 4bits 0~8
-  private val uvlMax = numBytes.U >> info.eew
-  private val uvlMaxForAssert = numBytes.U >> info.vsew
-  private val vlMaxForAssert = Mux(io.in.info.vlmul(2), uvlMaxForAssert >> (-io.in.info.vlmul), uvlMaxForAssert << io.in.info.vlmul).asUInt
-
-  private val realEw = Mux(in.isIndexedVls, info.vsew, info.eew)
-  private val maskDataVec: Vec[UInt] = VecDataToMaskDataVec(in.mask, realEw)
-  protected lazy val maskUsed = maskDataVec(vdIdx)
-
-  maskTailGen.io.in.begin := info.vstart /*Mux1H(Seq(
-    (vstartMapVdIdx < vdIdx) -> 0.U,
-    (vstartMapVdIdx === vdIdx) -> elemIdxMapUElemIdx(info.vstart),
-    (vstartMapVdIdx > vdIdx) -> uvlMax,
-  ))*/
-  maskTailGen.io.in.end := info.vl /*Mux1H(Seq(
-    (vlMapVdIdx < vdIdx) -> 0.U,
-    (vlMapVdIdx === vdIdx) -> elemIdxMapUElemIdx(info.vl),
-    (vlMapVdIdx > vdIdx) -> uvlMax,
-  ))*/
-  maskTailGen.io.in.vma := info.ma
-  maskTailGen.io.in.vta := info.ta
-  maskTailGen.io.in.vsew := realEw
-  maskTailGen.io.in.maskUsed := maskUsed
-  maskTailGen.io.in.vdIdx := vdIdx
-
-  private val activeEn = maskTailGen.io.out.activeEn
-  private val agnosticEn = maskTailGen.io.out.agnosticEn
-
-  // the result of normal inst and narrow inst which does not need concat
-  private val byte1s: UInt = (~0.U(8.W)).asUInt
-
-  private val resVecByte = Wire(Vec(numBytes, UInt(8.W)))
-  private val vdVecByte = vd.asTypeOf(resVecByte)
-  private val oldVdVecByte = oldVd.asTypeOf(resVecByte)
-
-  for (i <- 0 until numBytes) {
-    resVecByte(i) := MuxCase(oldVdVecByte(i), Seq(
-      activeEn(i) -> vdVecByte(i),
-      agnosticEn(i) -> byte1s,
-    ))
-  }
-
-  // mask vd is at most 16 bits
-  private val maskOldVdBits = splitVdMask(oldVd, SewOH(info.eew))(vdIdx)
-  private val maskBits = splitVdMask(in.mask, SewOH(info.eew))(vdIdx)
-  private val maskVecByte = Wire(Vec(numBytes, UInt(1.W)))
-  maskVecByte.zipWithIndex.foreach { case (mask, i) =>
-    mask := Mux(maskBits(i), vd(i), Mux(info.ma, 1.U, maskOldVdBits(i)))
-  }
-  private val maskVd = maskVecByte.asUInt
-
-  // the result of mask-generating inst
-  private val maxVdIdx = 8
-  private val meaningfulBitsSeq = Seq(16, 8, 4, 2)
-  private val allPossibleResBit = Wire(Vec(4, Vec(maxVdIdx, UInt(vlen.W))))
-
-  for (sew <- 0 to 3) {
-    if (sew == 0) {
-      allPossibleResBit(sew)(maxVdIdx - 1) := Cat(maskVd(meaningfulBitsSeq(sew) - 1, 0),
-        oldVd(meaningfulBitsSeq(sew) * (maxVdIdx - 1) - 1, 0))
-    } else {
-      allPossibleResBit(sew)(maxVdIdx - 1) := Cat(oldVd(vlen - 1, meaningfulBitsSeq(sew) * maxVdIdx),
-        maskVd(meaningfulBitsSeq(sew) - 1, 0), oldVd(meaningfulBitsSeq(sew) * (maxVdIdx - 1) - 1, 0))
-    }
-    for (i <- 1 until maxVdIdx - 1) {
-      allPossibleResBit(sew)(i) := Cat(oldVd(vlen - 1, meaningfulBitsSeq(sew) * (i + 1)),
-        maskVd(meaningfulBitsSeq(sew) - 1, 0), oldVd(meaningfulBitsSeq(sew) * i - 1, 0))
-    }
-    allPossibleResBit(sew)(0) := Cat(oldVd(vlen - 1, meaningfulBitsSeq(sew)), maskVd(meaningfulBitsSeq(sew) - 1, 0))
-  }
-
-  private val resVecBit = allPossibleResBit(info.eew)(vdIdx)
-
-  io.out.vd := MuxCase(resVecByte.asUInt, Seq(
-    info.dstMask -> resVecBit.asUInt,
-  ))
-  io.out.active := activeEn
-  io.out.illegal := false.B // (info.vl > vlMaxForAssert) && info.valid
-
-  io.debugOnly.vstartMapVdIdx := vstartMapVdIdx
-  io.debugOnly.vlMapVdIdx := vlMapVdIdx
-  io.debugOnly.begin := maskTailGen.io.in.begin
-  io.debugOnly.end := maskTailGen.io.in.end
-  io.debugOnly.activeEn := activeEn
-  io.debugOnly.agnosticEn := agnosticEn
   def elemIdxMapVdIdx(elemIdx: UInt) = {
     require(elemIdx.getWidth >= log2Up(vlen))
     // 3 = log2(8)
@@ -158,10 +81,94 @@ class Mgu(vlen: Int)(implicit p: Parameters) extends  Module {
     }
     result
   }
-}
 
-class VldMgu(vlen: Int)(implicit p: Parameters) extends Mgu(vlen) {
-  override lazy val maskUsed = in.mask(15, 0)
+  val vstartMapVdIdx = elemIdxMapVdIdx(info.vstart)(2, 0) // 3bits 0~7
+  val vlMapVdIdx = elemIdxMapVdIdx(info.vl)(3, 0)         // 4bits 0~8
+  val uvlMax = numBytes.U >> info.eew
+  val uvlMaxForAssert = numBytes.U >> info.vsew
+  val vlMaxForAssert = Mux(io.in.info.vlmul(2), uvlMaxForAssert >> (-io.in.info.vlmul), uvlMaxForAssert << io.in.info.vlmul).asUInt
+
+  val realEw = Mux(in.isIndexedVls, info.vsew, info.eew)
+  val maskDataVec: Vec[UInt] = VecDataToMaskDataVec(in.mask, realEw)
+  val maskUsed = if (maskUsedFromLowBits) in.mask(15, 0) else maskDataVec(vdIdx)
+
+  maskTailGen.io.in.begin := info.vstart /*Mux1H(Seq(
+    (vstartMapVdIdx < vdIdx) -> 0.U,
+    (vstartMapVdIdx === vdIdx) -> elemIdxMapUElemIdx(info.vstart),
+    (vstartMapVdIdx > vdIdx) -> uvlMax,
+  ))*/
+  maskTailGen.io.in.end := info.vl /*Mux1H(Seq(
+    (vlMapVdIdx < vdIdx) -> 0.U,
+    (vlMapVdIdx === vdIdx) -> elemIdxMapUElemIdx(info.vl),
+    (vlMapVdIdx > vdIdx) -> uvlMax,
+  ))*/
+  maskTailGen.io.in.vma := info.ma
+  maskTailGen.io.in.vta := info.ta
+  maskTailGen.io.in.vsew := realEw
+  maskTailGen.io.in.maskUsed := maskUsed
+  maskTailGen.io.in.vdIdx := vdIdx
+
+  val activeEn = maskTailGen.io.out.activeEn
+  val agnosticEn = maskTailGen.io.out.agnosticEn
+
+  // the result of normal inst and narrow inst which does not need concat
+  val byte1s: UInt = (~0.U(8.W)).asUInt
+
+  val resVecByte = Wire(Vec(numBytes, UInt(8.W)))
+  val vdVecByte = vd.asTypeOf(resVecByte)
+  val oldVdVecByte = oldVd.asTypeOf(resVecByte)
+
+  for (i <- 0 until numBytes) {
+    resVecByte(i) := MuxCase(oldVdVecByte(i), Seq(
+      activeEn(i) -> vdVecByte(i),
+      agnosticEn(i) -> byte1s,
+    ))
+  }
+
+  // mask vd is at most 16 bits
+  val maskOldVdBits = splitVdMask(oldVd, SewOH(info.eew))(vdIdx)
+  val maskBits = splitVdMask(in.mask, SewOH(info.eew))(vdIdx)
+  val maskVecByte = Wire(Vec(numBytes, UInt(1.W)))
+  maskVecByte.zipWithIndex.foreach { case (mask, i) =>
+    mask := Mux(maskBits(i), vd(i), Mux(info.ma, 1.U, maskOldVdBits(i)))
+  }
+  val maskVd = maskVecByte.asUInt
+
+  // the result of mask-generating inst
+  val maxVdIdx = 8
+  val meaningfulBitsSeq = Seq(16, 8, 4, 2)
+  val allPossibleResBit = Wire(Vec(4, Vec(maxVdIdx, UInt(vlen.W))))
+
+  for (sew <- 0 to 3) {
+    if (sew == 0) {
+      allPossibleResBit(sew)(maxVdIdx - 1) := Cat(maskVd(meaningfulBitsSeq(sew) - 1, 0),
+        oldVd(meaningfulBitsSeq(sew) * (maxVdIdx - 1) - 1, 0))
+    } else {
+      allPossibleResBit(sew)(maxVdIdx - 1) := Cat(oldVd(vlen - 1, meaningfulBitsSeq(sew) * maxVdIdx),
+        maskVd(meaningfulBitsSeq(sew) - 1, 0), oldVd(meaningfulBitsSeq(sew) * (maxVdIdx - 1) - 1, 0))
+    }
+    for (i <- 1 until maxVdIdx - 1) {
+      allPossibleResBit(sew)(i) := Cat(oldVd(vlen - 1, meaningfulBitsSeq(sew) * (i + 1)),
+        maskVd(meaningfulBitsSeq(sew) - 1, 0), oldVd(meaningfulBitsSeq(sew) * i - 1, 0))
+    }
+    allPossibleResBit(sew)(0) := Cat(oldVd(vlen - 1, meaningfulBitsSeq(sew)), maskVd(meaningfulBitsSeq(sew) - 1, 0))
+  }
+
+  val resVecBit = allPossibleResBit(info.eew)(vdIdx)
+
+  io.out.vd := MuxCase(resVecByte.asUInt, Seq(
+    info.dstMask -> resVecBit.asUInt,
+  ))
+  io.out.active := activeEn
+  io.out.illegal := false.B // (info.vl > vlMaxForAssert) && info.valid
+
+  io.debugOnly.vstartMapVdIdx := vstartMapVdIdx
+  io.debugOnly.vlMapVdIdx := vlMapVdIdx
+  io.debugOnly.begin := maskTailGen.io.in.begin
+  io.debugOnly.end := maskTailGen.io.in.end
+  io.debugOnly.activeEn := activeEn
+  io.debugOnly.agnosticEn := agnosticEn
+  }
 }
 
 class MguIO(vlen: Int)(implicit p: Parameters) extends Bundle {

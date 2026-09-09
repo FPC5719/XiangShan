@@ -2,6 +2,7 @@ package xiangshan.backend.fu.wrapper
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import utility.ZeroExt
 import xiangshan.{VSETOpType, CSROpType}
 import xiangshan.backend.decode.{Imm_VSETIVLI, Imm_VSETVLI}
@@ -17,7 +18,7 @@ class VSetBase(cfg: FuConfig)(implicit p: Parameters) extends PipedFuncUnit(cfg)
   protected val in = io.in.bits
   protected val out = io.out.bits
 
-  protected val vsetModule = Module(new VsetModule(cfg))
+  protected val vsetModule = CacheableModule(new VsetModule(cfg), cfg.readOldVtype)
 
   protected val flushed = io.in.bits.ctrl.robIdx.needFlush(io.flush)
 

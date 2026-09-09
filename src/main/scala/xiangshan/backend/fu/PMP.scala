@@ -21,6 +21,7 @@ package xiangshan.backend.fu
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.{CacheableKey, CacheableModule}
 import chisel3.util._
 import utility.MaskedRegMap.WritableMask
 import xiangshan._
@@ -559,6 +560,12 @@ class PMPCheckv2IO(lgMaxSize: Int)(implicit p: Parameters) extends PMPBundle {
   }
 }
 
+object PMPChecker {
+  implicit object Key extends CacheableKey[PMPChecker] {
+    override def cacheKey(args: Seq[Any]): Any = args
+  }
+}
+
 class PMPChecker
 (
   lgMaxSize: Int = 3,
@@ -568,9 +575,12 @@ class PMPChecker
 )(implicit p: Parameters) extends PMPModule
   with PMPCheckMethod
   with PMACheckMethod
+  with CacheableModule
 {
   require(!(leaveHitMux && sameCycle))
   val io = IO(new PMPCheckIO(lgMaxSize))
+
+  protected def buildModule(): Unit = {
 
   val req = io.req.bits
 
@@ -619,6 +629,7 @@ class PMPChecker
     io.resp := resp
   } else {
     io.resp := RegEnable(resp, io.req.valid)
+  }
   }
 }
 

@@ -2,11 +2,12 @@ package xiangshan.backend.datapath
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import xiangshan._
 import xiangshan.backend.Bundles._
 import xiangshan.backend.exu.ExeUnitParams
-import xiangshan.backend.fu.vector.{ByteMaskTailGen, Mgu, VldMgu, VecInfo}
+import xiangshan.backend.fu.vector.{ByteMaskTailGen, Mgu, VecInfo}
 import xiangshan.mem.GenUSMaskRegVL
 import yunsuan.vector.SewOH
 
@@ -16,7 +17,7 @@ class VldMergeUnit(val params: ExeUnitParams)(implicit p: Parameters) extends XS
   io.writeback.ready := io.writebackAfterMerge.ready
 
   val wbReg = Reg(Valid(new NewExuOutput(params)))
-  val mgu = Module(new VldMgu(VLEN))
+  val mgu = CacheableModule(new Mgu(VLEN, maskUsedFromLowBits = true), VLEN, true)
   val vdAfterMerge = Wire(UInt(VLEN.W))
 
   val wbFire = !io.writeback.bits.toRob.bits.robIdx.needFlush(io.flush) && io.writeback.fire

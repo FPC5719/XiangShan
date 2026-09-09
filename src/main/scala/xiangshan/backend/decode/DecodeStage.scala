@@ -18,6 +18,7 @@ package xiangshan.backend.decode
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import utility._
 import utils._
@@ -106,7 +107,7 @@ class DecodeStage(implicit p: Parameters) extends XSModule
   /** complex decoder */
   val decoderComp = Module(new DecodeUnitComp)
   /** simple decoders in Seq of DecodeWidth */
-  val decoders = Seq.fill(DecodeWidth)(Module(new DecodeUnit))
+  val decoders = Seq.fill(DecodeWidth)(CacheableModule(new DecodeUnit))
 
   val debug_globalCounter = RegInit(0.U(XLEN.W))
 

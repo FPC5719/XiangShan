@@ -4,6 +4,7 @@ import freechips.rocketchip.diplomacy.{AddressSet, LazyModule, LazyModuleImp, Si
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.cacheable._
 import xiangshan._
 import utils._
 import utility._
@@ -44,7 +45,7 @@ class TLPMA(implicit p: Parameters) extends LazyModule with PMAConst with MMPMAM
     )
 
     val pma_check = VecInit(Seq.fill(mmpma.num)(
-      Module(new PMPChecker(
+      CacheableModule(new PMPChecker(
         mmpma.lgMaxSize/*pmaParam.lgMaxSize*/,
         mmpma.sameCycle/* pmaParam.sameCycle*/,
         false)).io

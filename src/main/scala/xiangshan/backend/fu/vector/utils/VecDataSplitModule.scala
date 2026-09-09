@@ -1,6 +1,7 @@
 package xiangshan.backend.fu.vector.utils
 
 import chisel3._
+import chisel3.experimental.cacheable.{CacheableKey, CacheableModule}
 
 class VecDataSplitIO(inDataWidth: Int, outDataWidth: Int) extends Bundle {
   val inVecData = Input(UInt(inDataWidth.W))
@@ -10,14 +11,22 @@ class VecDataSplitIO(inDataWidth: Int, outDataWidth: Int) extends Bundle {
   val outVec64b = Output(Vec(inDataWidth / 64, UInt(64.W)))
 }
 
-class VecDataSplitModule(inDataWidth: Int, outDataWidth: Int) extends Module {
+object VecDataSplitModule {
+  implicit object Key extends CacheableKey[VecDataSplitModule] {
+    override def cacheKey(args: Seq[Any]): Any = args
+  }
+}
+
+class VecDataSplitModule(inDataWidth: Int, outDataWidth: Int) extends Module with CacheableModule {
   val io = IO(new VecDataSplitIO(inDataWidth, outDataWidth))
 
-  private val inData = io.inVecData
-  private val vec8b  = Wire(Vec(inDataWidth /  8, UInt( 8.W)))
-  private val vec16b = Wire(Vec(inDataWidth / 16, UInt(16.W)))
-  private val vec32b = Wire(Vec(inDataWidth / 32, UInt(32.W)))
-  private val vec64b = Wire(Vec(inDataWidth / 64, UInt(64.W)))
+  protected def buildModule(): Unit = {
+
+  val inData = io.inVecData
+  val vec8b  = Wire(Vec(inDataWidth /  8, UInt( 8.W)))
+  val vec16b = Wire(Vec(inDataWidth / 16, UInt(16.W)))
+  val vec32b = Wire(Vec(inDataWidth / 32, UInt(32.W)))
+  val vec64b = Wire(Vec(inDataWidth / 64, UInt(64.W)))
 
   vec8b  := inData.asTypeOf(vec8b)
   vec16b := inData.asTypeOf(vec16b)
@@ -28,4 +37,5 @@ class VecDataSplitModule(inDataWidth: Int, outDataWidth: Int) extends Module {
   io.outVec32b.zip(vec32b).foreach { case(sink, source) => sink := source }
   io.outVec16b.zip(vec16b).foreach { case(sink, source) => sink := source }
   io.outVec8b .zip(vec8b) .foreach { case(sink, source) => sink := source }
+  }
 }

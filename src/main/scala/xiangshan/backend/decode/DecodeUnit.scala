@@ -18,6 +18,7 @@ package xiangshan.backend.decode
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.{CacheableKey, CacheableModule}
 import chisel3.util._
 import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.rocket.CustomInstructions._
@@ -815,12 +816,18 @@ class DecodeUnitIO(implicit p: Parameters) extends XSBundle {
 /**
  * Decode unit that takes in a single CtrlFlow and generates a CfCtrl.
  */
-class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstants {
+object DecodeUnit {
+  implicit object Key extends CacheableKey[DecodeUnit]
+}
+
+class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstants with CacheableModule {
   val io = IO(new DecodeUnitIO)
+
+  protected def buildModule(): Unit = {
 
   val ctrl_flow = io.enq.decodeInUop // input with RVC Expanded
 
-  private val inst: XSInstBitFields = io.enq.decodeInUop.instr.asTypeOf(new XSInstBitFields)
+  val inst: XSInstBitFields = io.enq.decodeInUop.instr.asTypeOf(new XSInstBitFields)
   val decode_table: Array[(BitPat, List[BitPat])] = XDecode.table ++
     FpDecode.table ++
 //    FDivSqrtDecode.table ++
@@ -862,8 +869,8 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
   // fmsub - b1000111
   // fnmsub- b1001011
   // fnmadd- b1001111
-  private val isFMA = inst.OPCODE === BitPat("b100??11")
-  private val isVppu = FuType.isVppu(decodedInst.fuType)
+  val isFMA = inst.OPCODE === BitPat("b100??11")
+  val isVppu = FuType.isVppu(decodedInst.fuType)
 
   // read src1~3 location
   decodedInst.lsrc(0) := inst.RS1
@@ -889,19 +896,19 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
   val isCsrrVlenb = isCsrr && inst.CSRIDX === CSRs.vlenb.U
   val isCsrrVl    = isCsrr && inst.CSRIDX === CSRs.vl.U
 
-  private val isCboClean = CBO_CLEAN === io.enq.decodeInUop.instr
-  private val isCboFlush = CBO_FLUSH === io.enq.decodeInUop.instr
-  private val isCboInval = CBO_INVAL === io.enq.decodeInUop.instr
-  private val isCboZero  = CBO_ZERO  === io.enq.decodeInUop.instr
+  val isCboClean = CBO_CLEAN === io.enq.decodeInUop.instr
+  val isCboFlush = CBO_FLUSH === io.enq.decodeInUop.instr
+  val isCboInval = CBO_INVAL === io.enq.decodeInUop.instr
+  val isCboZero  = CBO_ZERO  === io.enq.decodeInUop.instr
 
   // Note that rnum of aes64ks1i must be in the range 0x0..0xA. The values 0xB..0xF are reserved.
-  private val isAes64ks1iIllegal =
+  val isAes64ks1iIllegal =
     FuType.FuTypeOrR(decodedInst.fuType, FuType.bku) && (decodedInst.fuOpType === BKUOpType.aes64ks1i) && inst.isRnumIllegal
 
-  private val isAmocasQ = FuType.FuTypeOrR(decodedInst.fuType, FuType.mou) && decodedInst.fuOpType === LSUOpType.amocas_q
-  private val isAmocasQIllegal = isAmocasQ && (inst.RD(0) === 1.U || inst.RS2(0) === 1.U)
+  val isAmocasQ = FuType.FuTypeOrR(decodedInst.fuType, FuType.mou) && decodedInst.fuOpType === LSUOpType.amocas_q
+  val isAmocasQIllegal = isAmocasQ && (inst.RD(0) === 1.U || inst.RS2(0) === 1.U)
 
-  private val exceptionII =
+  val exceptionII =
     decodedInst.selImm === SelImm.INVALID_INSTR ||
     (if (HasMptCheck) (io.fromCSR.illegalInst.mfence.get && FuType.FuTypeOrR(decodedInst.fuType, FuType.fence) && decodedInst.fuOpType === FenceOpType.mfence) else false.B) ||
     io.fromCSR.illegalInst.sfenceVMA  && FuType.FuTypeOrR(decodedInst.fuType, FuType.fence) && decodedInst.fuOpType === FenceOpType.sfence  ||
@@ -927,7 +934,7 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
     isAes64ks1iIllegal ||
     isAmocasQIllegal
 
-  private val exceptionVI =
+  val exceptionVI =
     io.fromCSR.virtualInst.sfenceVMA  && FuType.FuTypeOrR(decodedInst.fuType, FuType.fence) && decodedInst.fuOpType === FenceOpType.sfence ||
     io.fromCSR.virtualInst.sfencePart && FuType.FuTypeOrR(decodedInst.fuType, FuType.fence) && decodedInst.fuOpType === FenceOpType.nofence ||
     io.fromCSR.virtualInst.hfence     && FuType.FuTypeOrR(decodedInst.fuType, FuType.fence) && (decodedInst.fuOpType === FenceOpType.hfence_g || decodedInst.fuOpType === FenceOpType.hfence_v) ||
@@ -954,23 +961,23 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
     }
   ))
 
-  private val isLs = FuType.isLoadStore(decodedInst.fuType)
-  private val isVls = inst.isVecStore || inst.isVecLoad
-  private val isStore = FuType.isStore(decodedInst.fuType)
-  private val isAMO = FuType.isAMO(decodedInst.fuType)
-  private val isVStore = FuType.isVStore(decodedInst.fuType)
+  val isLs = FuType.isLoadStore(decodedInst.fuType)
+  val isVls = inst.isVecStore || inst.isVecLoad
+  val isStore = FuType.isStore(decodedInst.fuType)
+  val isAMO = FuType.isAMO(decodedInst.fuType)
+  val isVStore = FuType.isVStore(decodedInst.fuType)
 
   decodedInst.commitType := Cat(isLs | isVls, (isStore && !isAMO) | isVStore)
 
   decodedInst.isVset := FuType.isVset(decodedInst.fuType)
 
-  private val needReverseInsts = Seq(VRSUB_VI, VRSUB_VX, VFRDIV_VF, VFRSUB_VF)
-  private val vextInsts = Seq(VZEXT_VF2, VZEXT_VF4, VZEXT_VF8, VSEXT_VF2, VSEXT_VF4, VSEXT_VF8)
-  private val narrowInsts = Seq(
+  val needReverseInsts = Seq(VRSUB_VI, VRSUB_VX, VFRDIV_VF, VFRSUB_VF)
+  val vextInsts = Seq(VZEXT_VF2, VZEXT_VF4, VZEXT_VF8, VSEXT_VF2, VSEXT_VF4, VSEXT_VF8)
+  val narrowInsts = Seq(
     VNSRA_WV, VNSRA_WX, VNSRA_WI, VNSRL_WV, VNSRL_WX, VNSRL_WI,
     VNCLIP_WV, VNCLIP_WX, VNCLIP_WI, VNCLIPU_WV, VNCLIPU_WX, VNCLIPU_WI,
   )
-  private val maskDstInsts = Seq(
+  val maskDstInsts = Seq(
     VMADC_VV, VMADC_VX,  VMADC_VI,  VMADC_VVM, VMADC_VXM, VMADC_VIM,
     VMSBC_VV, VMSBC_VX,  VMSBC_VVM, VMSBC_VXM,
     VMAND_MM, VMNAND_MM, VMANDN_MM, VMXOR_MM, VMOR_MM, VMNOR_MM, VMORN_MM, VMXNOR_MM,
@@ -980,14 +987,14 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
     VMSGT_VX, VMSGT_VI, VMSGTU_VX, VMSGTU_VI,
     VMFEQ_VV, VMFEQ_VF, VMFNE_VV, VMFNE_VF, VMFLT_VV, VMFLT_VF, VMFLE_VV, VMFLE_VF, VMFGT_VF, VMFGE_VF,
   )
-  private val maskOpInsts = Seq(
+  val maskOpInsts = Seq(
     VMAND_MM, VMNAND_MM, VMANDN_MM, VMXOR_MM, VMOR_MM, VMNOR_MM, VMORN_MM, VMXNOR_MM,
   )
-  private val vmaInsts = Seq(
+  val vmaInsts = Seq(
     VMACC_VV, VMACC_VX, VNMSAC_VV, VNMSAC_VX, VMADD_VV, VMADD_VX, VNMSUB_VV, VNMSUB_VX,
     VWMACCU_VV, VWMACCU_VX, VWMACC_VV, VWMACC_VX, VWMACCSU_VV, VWMACCSU_VX, VWMACCUS_VX,
   )
-  private val wfflagsInsts = Seq(
+  val wfflagsInsts = Seq(
     // opfff
     FADD_S, FSUB_S, FADD_D, FSUB_D, FADD_H, FSUB_H,
     FEQ_S, FLT_S, FLE_S, FEQ_D, FLT_D, FLE_D, FEQ_H, FLT_H, FLE_H,
@@ -1034,7 +1041,7 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
     FCVTMOD_W_D,
   )
 
-  private val scalaNeedFrmInsts = Seq(
+  val scalaNeedFrmInsts = Seq(
     FADD_S, FSUB_S, FADD_D, FSUB_D, FADD_H, FSUB_H,
     FCVT_W_S, FCVT_WU_S, FCVT_L_S, FCVT_LU_S,
     FCVT_W_D, FCVT_WU_D, FCVT_L_D, FCVT_LU_D, FCVT_S_D, FCVT_D_S,
@@ -1043,17 +1050,17 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
     FROUND_H, FROUND_S, FROUND_D, FROUNDNX_H, FROUNDNX_S, FROUNDNX_D,
   )
 
-  private val vectorNeedFrmInsts = Seq (
+  val vectorNeedFrmInsts = Seq (
     VFSLIDE1UP_VF, VFSLIDE1DOWN_VF,
   )
 
-  private val vectorFloatNarrow = Seq (
+  val vectorFloatNarrow = Seq (
     VFREDOSUM_VS, VFREDUSUM_VS, VFREDMAX_VS, VFREDMIN_VS, VFWREDOSUM_VS, VFWREDUSUM_VS,
     VFNCVT_XU_F_W, VFNCVT_X_F_W, VFNCVT_RTZ_XU_F_W, VFNCVT_RTZ_X_F_W, VFNCVT_F_XU_W, VFNCVT_F_X_W, VFNCVT_F_F_W, VFNCVT_ROD_F_F_W,
     VFMV_S_F,
   )
 
-  private val scalarSew32 = Seq(
+  val scalarSew32 = Seq(
     FADD_S, FSUB_S, FEQ_S, FLT_S, FLE_S, FMIN_S, FMAX_S,
     FMUL_S, FDIV_S, FSQRT_S,
     FMADD_S, FMSUB_S, FNMADD_S, FNMSUB_S,
@@ -1078,7 +1085,7 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
   e64 -> e16: VSew.e64
   e16 -> e64: VSew.e16
    */
-  private val scalarSew16 = Seq(
+  val scalarSew16 = Seq(
     // zfh inst
     FADD_H, FSUB_H, FEQ_H, FLT_H, FLE_H, FMIN_H, FMAX_H,
     FMUL_H, FDIV_H, FSQRT_H,
@@ -1094,10 +1101,10 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
     // i2f cvt & mv
     FCVT_H_W, FCVT_H_WU, FMV_H_X,
   )
-  private val scalarIsSew32 = scalarSew32.map(ctrl_flow.instr === _).reduce(_ || _)
-  private val scalarIsSew16 = scalarSew16.map(ctrl_flow.instr === _).reduce(_ || _)
+  val scalarIsSew32 = scalarSew32.map(ctrl_flow.instr === _).reduce(_ || _)
+  val scalarIsSew16 = scalarSew16.map(ctrl_flow.instr === _).reduce(_ || _)
 
-  private val isFmaNeedVd = FuType.isVecOPFFma(decodedInst.fuType) & (decodedInst.fuOpType(3, 0) =/= VfmaOpCode.vfmul)
+  val isFmaNeedVd = FuType.isVecOPFFma(decodedInst.fuType) & (decodedInst.fuOpType(3, 0) =/= VfmaOpCode.vfmul)
 
   decodedInst.wfflags := wfflagsInsts.map(_ === inst.ALL).reduce(_ || _)
   decodedInst.needFrm.scalaNeedFrm := scalaNeedFrmInsts.map(_ === inst.ALL).reduce(_ || _)
@@ -1257,4 +1264,5 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
 //    io.deq.cf_ctrl.ctrl.noSpecExec, io.deq.cf_ctrl.ctrl.blockBackward, io.deq.cf_ctrl.ctrl.flushPipe,
 //    io.deq.cf_ctrl.ctrl.imm)
 //  XSDebug("out: excepVec=%b\n", io.deq.cf_ctrl.cf.exceptionVec.asUInt)
+  }
 }

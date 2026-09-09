@@ -1,6 +1,7 @@
 package xiangshan.backend.fu.wrapper
 
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import utility.XSError
@@ -20,7 +21,7 @@ class VMove(cfg: FuConfig)(implicit p: Parameters) extends VecPipedFuncUnit(cfg)
   private val valid = io.in.valid
 
   private val vMove = Module(new VectorMove)
-  private val mgu = Module(new Mgu(dataWidth))
+  private val mgu = CacheableModule(new Mgu(dataWidth), dataWidth, false)
 
   // mask
   private val maskDataVec: Vec[UInt] = VecDataToMaskDataVec(srcMask, vsew)
@@ -73,4 +74,3 @@ class VMove(cfg: FuConfig)(implicit p: Parameters) extends VecPipedFuncUnit(cfg)
 
   io.out.bits.res.data := Mux(vstartGeVl, oldVd, mgu.io.out.vd)
 }
-

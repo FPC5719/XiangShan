@@ -20,6 +20,7 @@ package xiangshan.cache.mmu
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.experimental.ExtModule
 import chisel3.util._
 import xiangshan._
@@ -97,7 +98,7 @@ class L2TLBImp(outer: L2TLB)(implicit p: Parameters) extends PtwModule(outer) wi
   val mptEn = Option.when(HasMptCheck) (mmpt.mode =/= 0.U)
 
   val pmp = Module(new PMP())
-  val pmp_check = VecInit(Seq.fill(if (HasBitmapCheck || HasMptCheck) 5 else 4) (Module(new PMPChecker(lgMaxSize = 3, sameCycle = true)).io))
+  val pmp_check = VecInit(Seq.fill(if (HasBitmapCheck || HasMptCheck) 5 else 4) (CacheableModule(new PMPChecker(lgMaxSize = 3, sameCycle = true), 3, true, false, true).io))
   pmp.io.distribute_csr := io.csr.distribute_csr
   def pmpCheckMode(index: Int): UInt = if (HasMptCheck && index == 4) ModeM else ModeS
   if (HasBitmapCheck) {

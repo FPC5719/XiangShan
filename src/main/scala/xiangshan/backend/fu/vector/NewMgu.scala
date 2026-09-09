@@ -2,6 +2,7 @@ package xiangshan.backend.fu.vector
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.experimental.cacheable.CacheableModule
 import chisel3.util._
 import top.ArgParser
 import xiangshan._
@@ -22,7 +23,7 @@ class NewMgu(vlen: Int)(implicit p: Parameters) extends Module {
   val vsew = info.vsew
   val eew = info.eew
 
-  private val maskTailGen = Module(new ByteMaskTailGen(vlen))
+  private val maskTailGen = CacheableModule(new ByteMaskTailGen(vlen), vlen)
   
   private val realEw = Mux(isIndexedVls, vsew, eew)
   private val maskDataVec: Vec[UInt] = VecDataToMaskDataVec(mask, realEw)
