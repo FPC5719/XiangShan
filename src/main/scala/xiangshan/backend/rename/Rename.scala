@@ -20,6 +20,7 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import chisel3.util.experimental.decode.TruthTable
+import chisel3.experimental.cacheable._
 import utility._
 import utils._
 import xiangshan._
@@ -120,7 +121,7 @@ class Rename(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHe
   val v0FreeList = Module(new StdFreeList(V0PhyRegs - V0LogicRegs, V0LogicRegs, Reg_V0, RabCommitWidth, 1))
   val vlFreeList = Module(new StdFreeList(VlPhyRegs - VlLogicRegs, VlLogicRegs, Reg_Vl, RabCommitWidth, 1))
 
-  val rat = Module(new RenameTableWrapper)
+  val rat = CacheableModule(new RenameTableWrapper)
 
   val intRenamePorts = Wire(Vec(RenameWidth, new RatWritePort(log2Ceil(IntLogicRegs))))
   val fpRenamePorts  = Wire(Vec(RenameWidth, new RatWritePort(log2Ceil(FpLogicRegs))))

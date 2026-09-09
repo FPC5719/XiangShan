@@ -19,6 +19,7 @@ package xiangshan.backend.rename
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.cacheable._
 import difftest._
 import utility.HasCircularQueuePtrHelper
 import utility.ParallelPriorityMux
@@ -184,7 +185,11 @@ class RenameTable(reg_t: RegType, numDiffWritePorts: Int)(implicit p: Parameters
   }
 }
 
-class RenameTableWrapper(implicit p: Parameters) extends XSModule {
+object RenameTableWrapper {
+  implicit object Key extends CacheableKey[RenameTableWrapper]
+}
+
+class RenameTableWrapper(implicit p: Parameters) extends XSModule with CacheableModule {
 
   // params alias
   private val numVecRegSrc = backendParams.numVecRegSrc
@@ -232,6 +237,8 @@ class RenameTableWrapper(implicit p: Parameters) extends XSModule {
     // for difftest
     val diff_vl_rat = if (backendParams.basicDebugEn) Some(Vec(diffRatParams.vlEntries, Output(UInt(PhyRegIdxWidth.W)))) else None
   })
+
+  protected def buildModule(): Unit = {
 
   val intRat = Module(new RenameTable(Reg_I, 0))
   val fpRat  = Module(new RenameTable(Reg_F, 0))
@@ -407,5 +414,7 @@ class RenameTableWrapper(implicit p: Parameters) extends XSModule {
       spec.addr := rename.addr
       spec.data := rename.data
     }
+  }
+
   }
 }

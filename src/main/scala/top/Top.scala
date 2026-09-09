@@ -82,7 +82,7 @@ trait HasDTSImp[+L <: BaseXSSoc] { this: LazyRawModuleImp =>
   FileRegisters.add("plusArgs", freechips.rocketchip.util.PlusArgArtefacts.serialize_cHeader())
 }
 
-class XSTop()(implicit p: Parameters) extends BaseXSSoc()
+class XSTop(collectDifftestInModule: Boolean = true)(implicit p: Parameters) extends BaseXSSoc()
 {
   private val useExternalLLC = p(UseExternalLLCKey)
   require(!useExternalLLC || enableCHI, "External LLC requires CHI")
@@ -248,6 +248,8 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
   class XSTopImp(wrapper: XSTop) extends LazyRawModuleImp(wrapper)
     with HasDTSImp[XSTop]
   {
+    protected def collectDifftest: Boolean = collectDifftestInModule
+
     override def localModulePrefix = soc.XSTopPrefix
     override def localModulePrefixUseSeparator = false
 
@@ -532,6 +534,10 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
       (core_with_l2.map(_.module)).zip(dmResetReqVec).map { case(core, dmResetReq) =>
         ResetGen(Seq(Seq(core)), (syncResetCores || dmResetReq).asAsyncReset, !debugOpts.ResetGen)
       }
+
+      if (collectDifftest && (debugOpts.EnableDifftest || debugOpts.AlwaysBasicDiff)) {
+        DifftestModule.collect("XIANGSHAN_KMHV3")
+      }
     }
 
   }
@@ -539,7 +545,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
   lazy val module = new XSTopImp(this)
 }
 
-class XSTileDiffTop(implicit p: Parameters) extends XSTop {
+class XSTileDiffTop(implicit p: Parameters) extends XSTop(collectDifftestInModule = false) {
   //TODO: need to keep the same module name as XSNoCDiffTop
   override lazy val desiredName: String = "XSTop"
 
@@ -584,10 +590,6 @@ object TopMain extends App {
 
     Generator.execute(firrtlOpts, soc.module, firtoolOpts)
 
-    // generate difftest bundles (w/o DifftestTopIO)
-    if (enableDifftest) {
-      DifftestModule.collect("XIANGSHAN_KMHV3")
-    }
   }
 
   FileRegisters.write(fileDir = "./build", filePrefix = "XSTop.")
