@@ -1580,7 +1580,7 @@ class LoadUnitS3(param: ExeUnitParams)(
   perfMdpAddr.perfLqFull := io.perfLqFull
 
   // StoreSet ChiselDB trace
-  val storeSetLoadUnitCheckHartId = p(XSCoreParamsKey).HartId
+  val storeSetLoadUnitCheckHartId = p(XSHartIdKey).HartId
   val storeSetLoadUnitCheckTable = ChiselDB.createTable(
     s"StoreSetLoadUnitCheckDB$storeSetLoadUnitCheckHartId",
     new StoreSetLoadUnitCheckDBEntry,

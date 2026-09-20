@@ -425,7 +425,7 @@ class HistoryTable()(implicit p: Parameters) extends BertiModule {
   accessLog.currVA := a1_stat_access_currVA
   accessLog.lastVA := a1_stat_access_lastVA
   accessLog.pc := a1_pc
-  val accessLogDb = ChiselDB.createTable(s"${_name}_accessLog${p(XSCoreParamsKey).HartId}", new AccessLogDb, basicDB = true)
+  val accessLogDb = ChiselDB.createTable(s"${_name}_accessLog${p(XSHartIdKey).HartId}", new AccessLogDb, basicDB = true)
   accessLogDb.log(data = accessLog, en = a1_valid, clock = clock, reset = reset)
 
   class SearchLogDb extends Bundle {
@@ -439,7 +439,7 @@ class HistoryTable()(implicit p: Parameters) extends BertiModule {
   searchLog.currLineVA := s2_stat_currLineVA
   searchLog.calDelta := s2_result.delta.asUInt
   searchLog.pc := s2_result.pc
-  val searchLogDb = ChiselDB.createTable(s"${_name}_searchLog${p(XSCoreParamsKey).HartId}", new SearchLogDb, basicDB = false)
+  val searchLogDb = ChiselDB.createTable(s"${_name}_searchLog${p(XSHartIdKey).HartId}", new SearchLogDb, basicDB = false)
   searchLogDb.log(data = searchLog, en = s2_result.valid, clock = clock, reset = reset)
 }
 
@@ -725,7 +725,7 @@ class DeltaTable()(implicit p: Parameters) extends BertiModule {
   deltaInfo2Db.delta := p1_info.delta.asUInt
   deltaInfo2Db.coverageCnt := p1_info.coverageCnt
   deltaInfo2Db.status := p1_info.status.asUInt
-  val prefetchDeltaTable = ChiselDB.createTable(s"${_name}_prefetchDeltaTable${p(XSCoreParamsKey).HartId}", new DeltaInfo2Db, basicDB = false)
+  val prefetchDeltaTable = ChiselDB.createTable(s"${_name}_prefetchDeltaTable${p(XSHartIdKey).HartId}", new DeltaInfo2Db, basicDB = false)
   prefetchDeltaTable.log(data = deltaInfo2Db, en = p1_pfValid, clock = clock, reset = reset)
   
   XSPerfAccumulate("learn_req", io.learn.valid)
@@ -882,7 +882,7 @@ extends DCacheModule {
     XSPerfAccumulate(s"src_req_fire_${partName}_alloc", e0_fire && !e0_update)
 
     // Debug DB logging per part
-    val srcTable = ChiselDB.createTable(s"${name}_${partName}SourcePrefetch${p(XSCoreParamsKey).HartId}", new SourcePrefetchReq, basicDB = true)
+    val srcTable = ChiselDB.createTable(s"${name}_${partName}SourcePrefetch${p(XSHartIdKey).HartId}", new SourcePrefetchReq, basicDB = true)
     srcTable.log(data = e0_src, en = e0_fire, clock = clock, reset = reset)
   }
   
@@ -1014,10 +1014,10 @@ extends DCacheModule {
   XSPerfAccumulate("pf_l3_req", io.l3_req.fire)
 
   /*** performance counter and debug */
-  val sendTableL1 = ChiselDB.createTable(s"${name}_l1SendPrefetch${p(XSCoreParamsKey).HartId}", new Entry, basicDB = false)
+  val sendTableL1 = ChiselDB.createTable(s"${name}_l1SendPrefetch${p(XSHartIdKey).HartId}", new Entry, basicDB = false)
   sendTableL1.log(data = entries(l1PfIdxGlobal), en = l1PfIdxArb.io.out.valid, clock = clock, reset = reset)
 
-  val sendTableL2 = ChiselDB.createTable(s"${name}_l2SendPrefetch${p(XSCoreParamsKey).HartId}", new Entry, basicDB = false)
+  val sendTableL2 = ChiselDB.createTable(s"${name}_l2SendPrefetch${p(XSHartIdKey).HartId}", new Entry, basicDB = false)
   sendTableL2.log(data = entries(l2PfIdxGlobal), en = l2PfIdxArb.io.out.valid, clock = clock, reset = reset)
 }
 

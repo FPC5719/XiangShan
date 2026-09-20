@@ -1726,7 +1726,7 @@ class MissQueue(edge: TLEdgeOut, reqNum: Int)(implicit p: Parameters) extends DC
     io.mem_grant(ch).ready := false.B
   }
 
-  val nMaxPrefetchEntry = Constantin.createRecord(s"nMaxPrefetchEntry${p(XSCoreParamsKey).HartId}", initValue = cfg.nMissEntries - 2)
+  val nMaxPrefetchEntry = Constantin.createRecord(s"nMaxPrefetchEntry${p(XSHartIdKey).HartId}", initValue = cfg.nMissEntries - 2)
   entries.zipWithIndex.foreach {
     case (e, i) =>
       val former_primary_ready = if(i == 0)
@@ -1931,8 +1931,8 @@ class MissQueue(edge: TLEdgeOut, reqNum: Int)(implicit p: Parameters) extends DC
     debug_miss_trace_vec(i).pc := io.queryMQ(i).req.bits.pc
   }
 
-  val isWriteL1MissQMissTable = Constantin.createRecord(s"isWriteL1MissQMissTable${p(XSCoreParamsKey).HartId}")
-  val table = ChiselDB.createTable(s"L1MissQMissTrace_hart${p(XSCoreParamsKey).HartId}", new L1MissTrace)
+  val isWriteL1MissQMissTable = Constantin.createRecord(s"isWriteL1MissQMissTable${p(XSHartIdKey).HartId}")
+  val table = ChiselDB.createTable(s"L1MissQMissTrace_hart${p(XSHartIdKey).HartId}", new L1MissTrace)
   for (i <- 0 until reqNum) {
     table.log(debug_miss_trace_vec(i), isWriteL1MissQMissTable.orR && query_fire(i) && !io.queryMQ(i).req.bits.cancel && ((analysis.strategy(i) & 1.U) =/= 0.U), s"MissQueue_$i", clock, reset)
   }

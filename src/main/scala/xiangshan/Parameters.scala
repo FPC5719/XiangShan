@@ -18,6 +18,8 @@ package xiangshan
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.paramchoice._
+import utility._
 import xscache.coupledL2._
 import xscache.chi._
 import freechips.rocketchip.diplomacy.AddressSet
@@ -41,14 +43,21 @@ import xiangshan.frontend._
 import xiangshan.mem.prefetch._
 import scala.math.{max, pow}
 
+case object XSHartIdKey extends Field[XSHartIdParameter]
+
+case class XSHartIdParameter(HartId: Int = 0)
+
 case object XSTileKey extends Field[Seq[XSCoreParameters]]
 
 case object XSCoreParamsKey extends Field[XSCoreParameters]
 
+// The HartIdDomain of the whole design. It is created once by the SoC top (see `XSTop`) and
+// passed down through parameters, so that all modules share a single `choice_domain`.
+case object XSHartIdDomainKey extends Field[HartIdDomain]
+
 case class XSCoreParameters
 (
   HasPrefetch: Boolean = false,
-  HartId: Int = 0,
   XLEN: Int = 64,
   VLEN: Int = 128,
   ELEN: Int = 64,
@@ -559,6 +568,8 @@ case class DFTOptions
 trait HasXSParameter {
 
   implicit val p: Parameters
+
+  implicit val hartIdDomain: HartIdDomain = p(XSHartIdDomainKey)
 
   def PAddrBits = p(SoCParamsKey).PAddrBits // PAddrBits is Phyical Memory addr bits
   def PmemRanges = p(SoCParamsKey).PmemRanges

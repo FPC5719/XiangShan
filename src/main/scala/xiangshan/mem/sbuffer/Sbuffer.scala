@@ -541,9 +541,9 @@ class Sbuffer(implicit p: Parameters)
   val cmo_empty = sbuffer_mshr_empty && inReq_empty
   val all_empty = cmo_empty && io.sqempty
   val threshold = Wire(UInt(5.W)) // RegNext(io.csrCtrl.sbuffer_threshold +& 1.U)
-  threshold := Constantin.createRecord(s"StoreBufferThreshold_${p(XSCoreParamsKey).HartId}", initValue = 9)
+  threshold := Constantin.createRecord(s"StoreBufferThreshold_${p(XSHartIdKey).HartId}", initValue = 9)
   val base = Wire(UInt(5.W))
-  base := Constantin.createRecord(s"StoreBufferBase_${p(XSCoreParamsKey).HartId}", initValue = 1)
+  base := Constantin.createRecord(s"StoreBufferBase_${p(XSHartIdKey).HartId}", initValue = 1)
   val ActiveCount = PopCount(activeMask)
   val ValidCount = PopCount(validMask)
   val forceThreshold = Mux(io.force_write, threshold - base, threshold)

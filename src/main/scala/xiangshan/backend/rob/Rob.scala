@@ -26,7 +26,8 @@ package xiangshan.backend.rob
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
-import chisel3.experimental.cacheable.CacheableModule
+import chisel3.experimental.cacheable._
+import chisel3.properties._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 import difftest._
@@ -53,14 +54,16 @@ import chisel3.util.experimental.decode.TruthTable
 import xiangshan.TopDownCounters._
 import xiangshan.backend.dispatch._
 
-class Rob(params: BackendParams)(implicit p: Parameters) extends LazyModule with HasXSParameter {
-  override def shouldBeInlined: Boolean = false
-
-  lazy val module = new RobImp(this)(p, params)
+object Rob {
+  implicit object Key extends CacheableKey[Rob]
 }
 
-class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendParams) extends LazyModuleImp(wrapper)
+class Rob(params: BackendParams)(implicit val p: Parameters) extends Module with CacheableModule
   with HasXSParameter with HasCircularQueuePtrHelper with HasPerfEvents with HasCriticalErrors {
+  
+  implicit val backendParamsImplicit: BackendParams = params
+
+  implicit val HartIdSelect: Property[hartIdDomain.Case] = IO(Input(Property[hartIdDomain.Case]()))
 
   private val LduCnt = params.LduCnt
   private val StaCnt = params.StaCnt
@@ -148,6 +151,8 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
       val pc     = Output(UInt(VAddrBits.W))
     })
   })
+
+  override def buildModule(): Unit = {
 
   val exuWBs: Seq[ValidIO[WriteBackRobBundle]] = io.exuWriteback
   val vldWBs: Seq[ValidIO[WriteBackRobBundle]] = io.exuWriteback.filter(_.bits.params.hasVLoadFu).toSeq
@@ -357,7 +362,7 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
     val redirect_pc = UInt(VAddrBits.W)  // PC of the redirect uop
     val debugLsInfo = new DebugLsInfo()
   }
-  val tip_table = ChiselDB.createTable("Tip_" + p(XSCoreParamsKey).HartId.toString, new TipEntry)
+  val tip_table = ChiselDB.PerHart().createTable("Tip_" + p(XSHartIdKey).HartId.toString, new TipEntry)
   val tip_data = Wire(new TipEntry())
   tip_data.state := tip_state
   tip_data.commits := io.commits
@@ -420,8 +425,8 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
     sink.bits := source.bits
   }
 
-  private val commitIsVTypeVec = VecInit(io.commits.commitValid.zip(io.commits.info).map { case (valid, info) => io.commits.isCommit && valid && info.needVTB })
-  private val walkIsVTypeVec = VecInit(io.commits.walkValid.zip(walkInfo).map { case (valid, info) => io.commits.isWalk && valid && info.needVTB })
+  val commitIsVTypeVec = VecInit(io.commits.commitValid.zip(io.commits.info).map { case (valid, info) => io.commits.isCommit && valid && info.needVTB })
+  val walkIsVTypeVec = VecInit(io.commits.walkValid.zip(walkInfo).map { case (valid, info) => io.commits.isWalk && valid && info.needVTB })
   vtypeBuffer.io.fromRob.commitSize := PopCount(commitIsVTypeVec)
   vtypeBuffer.io.fromRob.walkSize := PopCount(walkIsVTypeVec)
   vtypeBuffer.io.snpt := io.snpt
@@ -1044,7 +1049,7 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
   val enqRobIdxSeq = io.enq.req.map(req => req.bits.robIdx.value)
   val enqUopNumVec = VecInit(io.enq.req.map(req => req.bits.numUops))
   val enqWBNumVec = VecInit(io.enq.req.map(req => req.bits.numWB))
-  private val enqWriteStdVec = VecInit(io.enq.req.map(req => req.bits.stdwriteNeed))
+  val enqWriteStdVec = VecInit(io.enq.req.map(req => req.bits.stdwriteNeed))
 
   val fflags_wb = fflagsWBs
   val vxsat_wb = vxsatWBs
@@ -1371,8 +1376,8 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
   XSPerfAccumulate("walkInstr", Mux(io.commits.isWalk, PopCount(io.commits.walkValid), 0.U))
   XSPerfAccumulate("walkCycleTotal", state === s_walk)
   XSPerfAccumulate("waitRabWalkEnd", state === s_walk && walkFinished && !rab.io.status.walkEnd)
-  private val walkCycle = RegInit(0.U(8.W))
-  private val waitRabWalkCycle = RegInit(0.U(8.W))
+  val walkCycle = RegInit(0.U(8.W))
+  val waitRabWalkCycle = RegInit(0.U(8.W))
   walkCycle := Mux(io.redirect.valid, 0.U, Mux(state === s_walk, walkCycle + 1.U, 0.U))
   waitRabWalkCycle := Mux(state === s_walk && walkFinished, 0.U, Mux(state === s_walk, walkCycle + 1.U, 0.U))
 
@@ -1380,9 +1385,9 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
   XSPerfHistogram("walkRabExtraCycleHist", waitRabWalkCycle, state === s_walk && walkFinished && rab.io.status.walkEnd, 0, 32)
   XSPerfHistogram("walkTotalCycleHist", walkCycle, state === s_walk && state_next === s_idle, 0, 32)
 
-  private val deqNotWritebacked = robEntries(deqPtr.value).valid && !robEntries(deqPtr.value).isWritebacked
-  private val deqUopNotWritebacked = robEntries(deqPtr.value).valid && !robEntries(deqPtr.value).isUopWritebacked
-  private val deqHeadInfoFuType = robEntries(deqPtr.value).debug_fuType.getOrElse(0.U.asTypeOf(FuType()))
+  val deqNotWritebacked = robEntries(deqPtr.value).valid && !robEntries(deqPtr.value).isWritebacked
+  val deqUopNotWritebacked = robEntries(deqPtr.value).valid && !robEntries(deqPtr.value).isUopWritebacked
+  val deqHeadInfoFuType = robEntries(deqPtr.value).debug_fuType.getOrElse(0.U.asTypeOf(FuType()))
   val deqUopCommitType = robEntries(deqPtr.value).debug_commitType.getOrElse(0.U)
 
   XSPerfAccumulate("waitAluCycle", deqNotWritebacked && deqHeadInfoFuType === FuType.alu.U)
@@ -1485,9 +1490,9 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
    * log trigger is at writeback valid
    * */
   if (!env.FPGAPlatform) {
-    val instTableName = "InstTable" + p(XSCoreParamsKey).HartId.toString
-    val instSiteName = "Rob" + p(XSCoreParamsKey).HartId.toString
-    val debug_instTable = ChiselDB.createTable(instTableName, new InstInfoEntry, basicDB = true)
+    val instTableName = "InstTable" + p(XSHartIdKey).HartId.toString
+    val instSiteName = "Rob" + p(XSHartIdKey).HartId.toString
+    val debug_instTable = ChiselDB.PerHart().createTable(instTableName, new InstInfoEntry, basicDB = true)
     for (wb <- exuWBs) {
       when(wb.valid) {
         val debug_instData = Wire(new InstInfoEntry)
@@ -1523,7 +1528,7 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
   }
 
   // log when committing
-  val load_debug_table = ChiselDB.createTable("LoadDebugTable" + p(XSCoreParamsKey).HartId.toString, new LoadInfoEntry, basicDB = true)
+  val load_debug_table = ChiselDB.PerHart().createTable("LoadDebugTable" + p(XSHartIdKey).HartId.toString, new LoadInfoEntry, basicDB = true)
   for (i <- 0 until CommitWidth) {
     val log_enable = io.commits.commitValid(i) && io.commits.isCommit && (io.commits.info(i).commitType === CommitType.LOAD)
     val commit_index = io.commits.robIdx(i).value
@@ -1852,45 +1857,26 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
   val commitLoadVec = VecInit(commitLoadValid)
   val commitBranchVec = VecInit(commitBranchValid)
   val commitStoreVec = VecInit(io.commits.commitValid.zip(commitIsStore).map { case (v, t) => v && t })
-  val perfEvents = Seq(
-    ("rob_interrupt_num      ", io.flushOut.valid && intrEnable),
-    ("rob_exception_num      ", io.flushOut.valid && deqHasException),
-    ("rob_flush_pipe_num     ", io.flushOut.valid && isFlushPipe),
-    ("rob_replay_inst_num    ", io.flushOut.valid && isFlushPipe && deqHasReplayInst),
-    ("rob_commitUop          ", ifCommit(commitCnt)),
-    ("rob_commitInstr        ", ifCommitReg(trueCommitCnt)),
-    ("rob_commitInstrFused   ", ifCommitReg(fuseCommitCnt)),
-    ("rob_commitInstrLoad    ", ifCommitReg(PopCount(RegEnable(commitLoadVec, isCommit)))),
-    ("rob_commitInstrBranch  ", ifCommitReg(PopCount(RegEnable(commitBranchVec, isCommit)))),
-    ("rob_commitInstrStore   ", ifCommitReg(PopCount(RegEnable(commitStoreVec, isCommit)))),
-    ("rob_walkInstr          ", Mux(io.commits.isWalk, PopCount(io.commits.walkValid), 0.U)),
-    ("rob_walkCycle          ", (state === s_walk)),
-    ("rob_1_4_valid          ", numValidEntries <= (RobSize / 4).U),
-    ("rob_2_4_valid          ", numValidEntries > (RobSize / 4).U && numValidEntries <= (RobSize / 2).U),
-    ("rob_3_4_valid          ", numValidEntries > (RobSize / 2).U && numValidEntries <= (RobSize * 3 / 4).U),
-    ("rob_4_4_valid          ", numValidEntries > (RobSize * 3 / 4).U),
-    ("BRANCH_JUMP            ", brhJump),
-    ("BR_MIS_PRED            ", misPred),
-    ("TOTAL_FLUSH            ", io.redirect.valid)
-  )
-  generatePerfEvent()
 
-  // max commit-stuck cycle
-  val mmioBusy = io.lsq.mmioBusy // lsq know uncache request is rob head
-  val commitStuck = (!io.commits.commitValid.reduce(_ || _) || !io.commits.isCommit) && !mmioBusy
-  val commitStuckCycle = RegInit(0.U(log2Up(maxCommitStuck).W))
-  when(commitStuck) {
-    commitStuckCycle := commitStuckCycle + 1.U
-  }.elsewhen(!commitStuck && RegNext(commitStuck)) {
-    commitStuckCycle := 0.U
-  }
-  // check if stuck > 2^maxCommitStuckCycle
-  val commitStuck_overflow = commitStuckCycle.andR && (if (wfiResume) true.B else (!hasWFI))
-  val criticalErrors = Seq(
-    ("rob_commit_stuck  ", commitStuck_overflow),
-  )
-  generateCriticalErrors()
-
+  rob_interrupt_num_wire := io.flushOut.valid && intrEnable
+  rob_exception_num_wire := io.flushOut.valid && deqHasException
+  rob_flush_pipe_num_wire := io.flushOut.valid && isFlushPipe
+  rob_replay_inst_num_wire := io.flushOut.valid && isFlushPipe && deqHasReplayInst
+  rob_commitUop_wire := ifCommit(commitCnt)
+  rob_commitInstr_wire := ifCommitReg(trueCommitCnt)
+  rob_commitInstrFused_wire := ifCommitReg(fuseCommitCnt)
+  rob_commitInstrLoad_wire := ifCommitReg(PopCount(RegEnable(commitLoadVec, isCommit)))
+  rob_commitInstrBranch_wire := ifCommitReg(PopCount(RegEnable(commitBranchVec, isCommit)))
+  rob_commitInstrStore_wire := ifCommitReg(PopCount(RegEnable(commitStoreVec, isCommit)))
+  rob_walkInstr_wire := Mux(io.commits.isWalk, PopCount(io.commits.walkValid), 0.U)
+  rob_walkCycle_wire := (state === s_walk)
+  rob_1_4_valid_wire := numValidEntries <= (RobSize / 4).U
+  rob_2_4_valid_wire := numValidEntries > (RobSize / 4).U && numValidEntries <= (RobSize / 2).U
+  rob_3_4_valid_wire := numValidEntries > (RobSize / 2).U && numValidEntries <= (RobSize * 3 / 4).U
+  rob_4_4_valid_wire := numValidEntries > (RobSize * 3 / 4).U
+  BRANCH_JUMP_wire := brhJump
+  BR_MIS_PRED_wire := misPred
+  TOTAL_FLUSH_wire := io.redirect.valid
 
   // dontTouch for debug
   if (backendParams.debugEn) {
@@ -1937,4 +1923,65 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
   if (env.EnableDifftest || env.FullBasicDiff) {
     io.commits.info.map(info => dontTouch(info.debug_pc.get))
   }
+
+  }
+
+  val rob_interrupt_num_wire = Wire(Bool())
+  val rob_exception_num_wire = Wire(Bool())
+  val rob_flush_pipe_num_wire = Wire(Bool())
+  val rob_replay_inst_num_wire = Wire(Bool())
+  val rob_commitUop_wire = Wire(Bool())
+  val rob_commitInstr_wire = Wire(Bool())
+  val rob_commitInstrFused_wire = Wire(Bool())
+  val rob_commitInstrLoad_wire = Wire(Bool())
+  val rob_commitInstrBranch_wire = Wire(Bool())
+  val rob_commitInstrStore_wire = Wire(Bool())
+  val rob_walkInstr_wire = Wire(Bool())
+  val rob_walkCycle_wire = Wire(Bool())
+  val rob_1_4_valid_wire = Wire(Bool())
+  val rob_2_4_valid_wire = Wire(Bool())
+  val rob_3_4_valid_wire = Wire(Bool())
+  val rob_4_4_valid_wire = Wire(Bool())
+  val BRANCH_JUMP_wire = Wire(Bool())
+  val BR_MIS_PRED_wire = Wire(Bool())
+  val TOTAL_FLUSH_wire = Wire(Bool())
+
+  val perfEvents = Seq(
+    ("rob_interrupt_num      ", rob_interrupt_num_wire),
+    ("rob_exception_num      ", rob_exception_num_wire),
+    ("rob_flush_pipe_num     ", rob_flush_pipe_num_wire),
+    ("rob_replay_inst_num    ", rob_replay_inst_num_wire),
+    ("rob_commitUop          ", rob_commitUop_wire),
+    ("rob_commitInstr        ", rob_commitInstr_wire),
+    ("rob_commitInstrFused   ", rob_commitInstrFused_wire),
+    ("rob_commitInstrLoad    ", rob_commitInstrLoad_wire),
+    ("rob_commitInstrBranch  ", rob_commitInstrBranch_wire),
+    ("rob_commitInstrStore   ", rob_commitInstrStore_wire),
+    ("rob_walkInstr          ", rob_walkInstr_wire),
+    ("rob_walkCycle          ", rob_walkCycle_wire),
+    ("rob_1_4_valid          ", rob_1_4_valid_wire),
+    ("rob_2_4_valid          ", rob_2_4_valid_wire),
+    ("rob_3_4_valid          ", rob_3_4_valid_wire),
+    ("rob_4_4_valid          ", rob_4_4_valid_wire),
+    ("BRANCH_JUMP            ", BRANCH_JUMP_wire),
+    ("BR_MIS_PRED            ", BR_MIS_PRED_wire),
+    ("TOTAL_FLUSH            ", TOTAL_FLUSH_wire)
+  )
+  generatePerfEvent()
+
+  // max commit-stuck cycle
+  val mmioBusy = io.lsq.mmioBusy // lsq know uncache request is rob head
+  val commitStuck = (!io.commits.commitValid.reduce(_ || _) || !io.commits.isCommit) && !mmioBusy
+  val commitStuckCycle = RegInit(0.U(log2Up(maxCommitStuck).W))
+  when(commitStuck) {
+    commitStuckCycle := commitStuckCycle + 1.U
+  }.elsewhen(!commitStuck && RegNext(commitStuck)) {
+    commitStuckCycle := 0.U
+  }
+  // check if stuck > 2^maxCommitStuckCycle
+  val commitStuck_overflow = commitStuckCycle.andR && (if (wfiResume) true.B else (!io.wfi.wfiReq))
+  val criticalErrors = Seq(
+    ("rob_commit_stuck  ", commitStuck_overflow),
+  )
+  generateCriticalErrors()
 }

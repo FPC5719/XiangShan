@@ -482,7 +482,7 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   dontTouch(io.inner_hc_perfEvents)
   dontTouch(io.outer_hc_perfEvents)
 
-  val hartId = p(XSCoreParamsKey).HartId
+  val hartId = p(XSHartIdKey).HartId
   val redirect = RegNextWithEnable(io.redirect)
 
   private val dcache = outer.dcache.module

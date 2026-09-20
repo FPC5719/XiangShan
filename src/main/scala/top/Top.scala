@@ -98,12 +98,19 @@ class XSTop(collectDifftestInModule: Boolean = true)(implicit p: Parameters) ext
 
   println(s"FPGASoC cores: $NumCores banks: $L3NBanks block size: $L3BlockSize bus size: $L3OuterBusWidth")
 
-  val core_with_l2 = tiles.map(coreParams =>
+  // A `ChoiceDomain` can only be constructed inside Chisel's elaboration context and must exist
+  // exactly once per elaboration, so build it here (the hart count is known) and hand the very
+  // same instance to every tile through parameters.
+  private val hartIdDomain = new HartIdDomain(NumCores)
+
+  val core_with_l2 = tiles.zipWithIndex.map { case (coreParams, idx) =>
     LazyModule(new XSTile()(XSCachedParametersOptional(p(CachedParameterKey), p.alter((site, here, up) => {
+      case XSHartIdKey => XSHartIdParameter(idx)
+      case XSHartIdDomainKey => hartIdDomain
       case XSCoreParamsKey => coreParams
-      case PerfCounterOptionsKey => up(PerfCounterOptionsKey).copy(perfDBHartID = coreParams.HartId)
+      case PerfCounterOptionsKey => up(PerfCounterOptionsKey).copy(perfDBHartID = idx)
     }))))
-  )
+  }
   val chi_llcBridge_opt = Option.when(enableCHI && !useExternalLLC)(
     LazyModule(new OpenNCB()(p.alter((site, here, up) => {
       case NCBParametersKey => new NCBParameters(
@@ -311,7 +318,7 @@ class XSTop(collectDifftestInModule: Boolean = true)(implicit p: Parameters) ext
       withClockAndReset(io.clock, io.reset) {
         Module(new OpenLLC()(p.alter((site, here, up) => {
           case OpenLLCParamKey => soc.OpenLLCParamsOpt.get.copy(
-            hartIds = tiles.map(_.HartId),
+            hartIds = tiles.zipWithIndex.map(_._2),
             FPGAPlatform = debugOpts.FPGAPlatform
           )
         })))

@@ -26,7 +26,7 @@ import org.chipsalliance.cde.config.Parameters
 import utility._
 import xiangshan.mem.HasL1PrefetchSourceParameter
 import xiangshan.mem.prefetch._
-import xiangshan.{L1CacheErrorInfo, XSCoreParamsKey}
+import xiangshan.{L1CacheErrorInfo, XSCoreParamsKey, XSHartIdKey}
 import xiangshan.mem.L1PrefetchReq
 
 class MainPipeReq(implicit p: Parameters) extends DCacheBundle {
@@ -257,7 +257,7 @@ class MainPipe(implicit p: Parameters) extends DCacheModule with HasPerfEvents w
   // convert store req to main pipe req, and select a req from store and probe
   val storeWaitCycles = RegInit(0.U(4.W))
   val StoreWaitThreshold = Wire(UInt(4.W))
-  StoreWaitThreshold := Constantin.createRecord(s"StoreWaitThreshold_${p(XSCoreParamsKey).HartId}", initValue = 0)
+  StoreWaitThreshold := Constantin.createRecord(s"StoreWaitThreshold_${p(XSHartIdKey).HartId}", initValue = 0)
   val storeWaitTooLong = storeWaitCycles >= StoreWaitThreshold
   val loadsAreComing = io.data_read.asUInt.orR
   val storeCanAccept = storeWaitTooLong || !loadsAreComing || io.force_write

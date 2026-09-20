@@ -56,16 +56,23 @@ object ArgParser {
       |--dump-csr
       |""".stripMargin
 
-  def getConfigByName(confString: String): Parameters = {
+  def getConfigByName(confString: String, numCores: Int = 1): Parameters = {
     var prefix = "top." // default package is 'top'
     if(confString.contains('.')){ // already a full name
       prefix = ""
     }
     val c = Class.forName(prefix + confString).getConstructor(Integer.TYPE)
-    c.newInstance(1.asInstanceOf[Object]).asInstanceOf[Parameters]
+    c.newInstance(numCores.asInstanceOf[Object]).asInstanceOf[Parameters]
   }
   def parse(args: Array[String]): (Parameters, Array[String], Array[String]) = {
-    val default = new DefaultConfig(1)
+    // The core count has to be known before the config class is instantiated: `XSTileKey`
+    // (one `XSCoreParameters` per hart, all sharing their `HartIdDomain`) is built from the
+    // constructor argument of the config and cannot be resized afterwards.
+    val numCores = args.sliding(2).collectFirst {
+      case Array("--num-cores", value) => value.toInt
+    }.getOrElse(1)
+    require(numCores > 0, s"number of cores must be positive, but got $numCores")
+    val default = new DefaultConfig(numCores)
     var firrtlOpts = Array[String]()
     var firtoolOpts = Array[String]()
     @tailrec
@@ -81,16 +88,13 @@ object ArgParser {
           if(tail == Nil) exit(0)
           nextOption(config, tail)
         case "--config" :: confString :: tail =>
-          nextOption(getConfigByName(confString), tail)
+          nextOption(getConfigByName(confString, numCores), tail)
         case "--issue" :: issueString :: tail =>
           nextOption(config.alter((site, here, up) => {
             case xscache.chi.CHIIssue => issueString
           }), tail)
         case "--num-cores" :: value :: tail =>
           nextOption(config.alter((site, here, up) => {
-            case XSTileKey => (0 until value.toInt) map { i =>
-              up(XSTileKey).head.copy(HartId = i)
-            }
             case MaxHartIdBits =>
               log2Up(value.toInt) max up(MaxHartIdBits)
           }), tail)

@@ -19,6 +19,7 @@ package xiangshan.backend
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
+import chisel3.properties._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utility._
 import utils._
@@ -40,6 +41,7 @@ import xiangshan.backend.trace._
 import xiangshan.frontend.bpu.BranchAttribute
 import xiangshan.Redirect.findOldestRedirect
 import xiangshan.TopDownCounters._
+import chisel3.experimental.cacheable.CacheableModule
 
 class CtrlToFtqIO(implicit p: Parameters) extends XSBundle {
   val redirect = Valid(new Redirect)
@@ -67,8 +69,6 @@ class BackendToIBufBundle(implicit p: Parameters) extends XSBundle {
 
 class CtrlBlock(params: BackendParams)(implicit p: Parameters) extends LazyModule {
   override def shouldBeInlined: Boolean = false
-
-  val rob = LazyModule(new Rob(params))
 
   lazy val module = new CtrlBlockImp(this)(p, params)
 
@@ -115,7 +115,8 @@ class CtrlBlockImp(
   val lsqEnqCtrl = Module(new LsqEnqCtrl)
   private def hasRen: Boolean = true
   private val pcMem = Module(new SyncDataModuleTemplate(GuardedPc(), FtqSize, numPcMemRead, 1, "BackendPC", hasRen = hasRen))
-  private val rob = wrapper.rob.module
+  private val rob = CacheableModule(new Rob(params))
+  rob.HartIdSelect := Property(hartIdDomain.harts(p(XSHartIdKey).HartId))
   private val memCtrl = Module(new MemCtrl(params))
 
   private val disableFusion = decode.io.csrCtrl.singlestep || !decode.io.csrCtrl.fusion_enable
@@ -254,7 +255,7 @@ class CtrlBlockImp(
   memCtrl.io.memPredUpdate.valid := RegNext(mdpTrainValid) // pc is ready, 1 cycle later
 
   // StoreSet ChiselDB trace
-  val storeSetTrainHartId = p(XSCoreParamsKey).HartId
+  val storeSetTrainHartId = p(XSHartIdKey).HartId
   val storeSetTrainTable = ChiselDB.createTable(s"StoreSetTrainDB$storeSetTrainHartId", new StoreSetTrainDBEntry, basicDB = false)
   val storeSetTrainEntry = Wire(new StoreSetTrainDBEntry)
   storeSetTrainEntry.timeCnt := GTimer()

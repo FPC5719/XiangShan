@@ -57,7 +57,8 @@ class BaseConfig(n: Int) extends Config((site, here, up) => {
   case SoCParamsKey => SoCParameters()
   case CVMParamsKey => CVMParameters()
   case PMParameKey => PMParameters()
-  case XSTileKey => Seq.tabulate(n){ i => XSCoreParameters(HartId = i) }
+  case XSHartIdKey => XSHartIdParameter(0)
+  case XSTileKey => Seq.fill(n)(XSCoreParameters())
   case ExportDebug => DebugAttachParams(protocols = Set(JTAG))
   case DebugModuleKey => Some(DebugModuleParams(
     nAbstractDataWords = (if (site(XLen) == 32) 1 else if (site(XLen) == 64) 2 else 4),

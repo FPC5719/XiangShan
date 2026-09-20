@@ -94,10 +94,10 @@ class L2TopInlined()(implicit p: Parameters) extends LazyModule
 
   val enbale_tllog = !debugOpts.FPGAPlatform && debugOpts.AlwaysBasicDB
   val l1d_logger = Seq.tabulate(numMemChannelsFromDcache)(i =>
-    TLLogger(s"L2_L1D_${coreParams.HartId}_ch$i", enbale_tllog)
+    TLLogger(s"L2_L1D_${p(XSHartIdKey).HartId}_ch$i", enbale_tllog)
   )
-  val l1i_logger = TLLogger(s"L2_L1I_${coreParams.HartId}", enbale_tllog)
-  val ptw_logger = TLLogger(s"L2_PTW_${coreParams.HartId}", enbale_tllog)
+  val l1i_logger = TLLogger(s"L2_L1I_${p(XSHartIdKey).HartId}", enbale_tllog)
+  val ptw_logger = TLLogger(s"L2_PTW_${p(XSHartIdKey).HartId}", enbale_tllog)
   val ptw_to_l2_buffer = LazyModule(new TLBuffer)
   val i_mmio_buffer = LazyModule(new TLBuffer)
 
@@ -119,7 +119,7 @@ class L2TopInlined()(implicit p: Parameters) extends LazyModule
       }
     val config = new Config((_, _, _) => {
       case L2ParamKey => coreParams.L2CacheParamsOpt.get.copy(
-        hartId = p(XSCoreParamsKey).HartId,
+        hartId = p(XSHartIdKey).HartId,
         FPGAPlatform = debugOpts.FPGAPlatform,
         hasMbist = hasMbist,
         PrivateClintRange = if(UsePrivateClint) Some(TIMERRange) else None,

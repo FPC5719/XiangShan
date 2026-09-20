@@ -194,9 +194,13 @@ trait HasCoreLowPowerImp[+L <: HasXSTile] { this: BaseXSSocImp with HasXSTileCHI
 trait HasXSTile { this: BaseXSSoc =>
 
   // xstile
+  // A `ChoiceDomain` can only be constructed inside Chisel's elaboration context and must exist
+  // exactly once per elaboration. This top instantiates a single tile, so the domain has one hart.
+  private val hartIdDomain = new HartIdDomain(1)
   val core_with_l2 = LazyModule(new XSTileWrap()(XSCachedParametersOptional(p(CachedParameterKey), p.alter((site, here, up) => {
     case XSCoreParamsKey => tiles.head
-    case PerfCounterOptionsKey => up(PerfCounterOptionsKey).copy(perfDBHartID = tiles.head.HartId)
+    case XSHartIdDomainKey => hartIdDomain
+    case PerfCounterOptionsKey => up(PerfCounterOptionsKey).copy(perfDBHartID = 0)
   }))))
   // interrupts
   val clintIntNode = Option.when(!UsePrivateClint)(IntSourceNode(IntSourcePortSimple(1, 1, 2)))

@@ -287,7 +287,7 @@ class L2TLBImp(outer: L2TLB)(implicit p: Parameters) extends PtwModule(outer) wi
   arb2.io.in(InArbHPTWPort).bits.isLLptw := false.B
   arb2.io.in(InArbHPTWPort).bits.hptwId := hptw_req_arb.io.out.bits.id
   hptw_req_arb.io.out.ready := arb2.io.in(InArbHPTWPort).ready
-  val hartId = p(XSCoreParamsKey).HartId
+  val hartId = p(XSHartIdKey).HartId
   if (l2tlbParams.enablePrefetch) {
     val prefetch = Module(new L2TlbPrefetch())
     val recv = cache.io.resp

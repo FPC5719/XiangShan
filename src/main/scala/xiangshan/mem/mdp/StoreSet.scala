@@ -348,7 +348,7 @@ class SSIT(implicit p: Parameters) extends XSModule {
   }
 
   // StoreSet ChiselDB trace
-  val storeSetUpdateHartId = p(XSCoreParamsKey).HartId
+  val storeSetUpdateHartId = p(XSHartIdKey).HartId
   val storeSetUpdateTable = ChiselDB.createTable(s"StoreSetUpdateDB$storeSetUpdateHartId", new StoreSetUpdateDBEntry, basicDB = false)
 
   val storeSetUpdateTypeLxsx = 0.U(3.W)
