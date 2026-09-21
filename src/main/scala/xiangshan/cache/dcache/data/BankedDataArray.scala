@@ -33,7 +33,7 @@ import utility.sram.SRAMTemplate
 import chisel3.util._
 import utility.mbist.MbistPipeline
 import xiangshan.mem.LqPtr
-import xiangshan.{L1CacheErrorInfo, XSCoreParamsKey}
+import xiangshan.{L1CacheErrorInfo, XSCoreParamsKey, XSHartIdKey}
 
 import scala.math.max
 
@@ -621,8 +621,8 @@ class SramedDataArray(implicit p: Parameters) extends AbstractBankedDataArray {
     }
   }
 
-  val tableName =  "BankConflict" + p(XSCoreParamsKey).HartId.toString
-  val siteName = "BankedDataArray" + p(XSCoreParamsKey).HartId.toString
+  val tableName =  "BankConflict" + p(XSHartIdKey).HartId.toString
+  val siteName = "BankedDataArray" + p(XSHartIdKey).HartId.toString
   val bankConflictTable = ChiselDB.createTable(tableName, new BankConflictDB)
   val bankConflictData = Wire(new BankConflictDB)
   for (i <- 0 until LoadPipelineWidth) {
@@ -645,7 +645,7 @@ class SramedDataArray(implicit p: Parameters) extends AbstractBankedDataArray {
     bankConflictData.fake_rr_bank_conflict := false.B
   }
 
-  val isWriteBankConflictTable = Constantin.createRecord(s"isWriteBankConflictTable${p(XSCoreParamsKey).HartId}")
+  val isWriteBankConflictTable = Constantin.createRecord(s"isWriteBankConflictTable${p(XSHartIdKey).HartId}")
   bankConflictTable.log(
     data = bankConflictData,
     en = isWriteBankConflictTable.orR && rr_bank_conflict(0)(1),
@@ -999,8 +999,8 @@ class BankedDataArray(implicit p: Parameters) extends AbstractBankedDataArray {
     }
   }
 
-  val tableName = "BankConflict" + p(XSCoreParamsKey).HartId.toString
-  val siteName = "BankedDataArray" + p(XSCoreParamsKey).HartId.toString
+  val tableName = "BankConflict" + p(XSHartIdKey).HartId.toString
+  val siteName = "BankedDataArray" + p(XSHartIdKey).HartId.toString
   val bankConflictTable = ChiselDB.createTable(tableName, new BankConflictDB)
   val bankConflictData = Wire(new BankConflictDB)
   for (i <- 0 until LoadPipelineWidth) {
@@ -1023,7 +1023,7 @@ class BankedDataArray(implicit p: Parameters) extends AbstractBankedDataArray {
     bankConflictData.fake_rr_bank_conflict := false.B
   }
 
-  val isWriteBankConflictTable = Constantin.createRecord(s"isWriteBankConflictTable${p(XSCoreParamsKey).HartId}")
+  val isWriteBankConflictTable = Constantin.createRecord(s"isWriteBankConflictTable${p(XSHartIdKey).HartId}")
   bankConflictTable.log(
     data = bankConflictData,
     en = isWriteBankConflictTable.orR && rr_bank_conflict(0)(1),

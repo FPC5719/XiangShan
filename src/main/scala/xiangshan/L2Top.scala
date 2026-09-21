@@ -118,7 +118,7 @@ class L2TopInlined()(implicit p: Parameters) extends LazyModule
       }
     val config = new Config((_, _, _) => {
       case L2ParamKey => coreParams.L2CacheParamsOpt.get.copy(
-        hartId = p(XSCoreParamsKey).HartId,
+        hartId = p(XSHartIdKey).HartId,
         FPGAPlatform = debugOpts.FPGAPlatform,
         hasMbist = hasMbist,
         PrivateClintRange = if(UsePrivateClint) Some(TIMERRange) else None,

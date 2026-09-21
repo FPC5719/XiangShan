@@ -28,6 +28,7 @@ import utility.XSPerfHistogram
 import xiangshan.Redirect
 import xiangshan.TopDownCounters
 import xiangshan.XSCoreParamsKey
+import xiangshan.XSHartIdKey
 import xiangshan.frontend.BackendRedirectTopdown
 import xiangshan.frontend.FrontendTopDownBundle
 import xiangshan.frontend.icache.ICachePerfInfo
@@ -178,7 +179,7 @@ class IfuPerfAnalysis(implicit p: Parameters) extends IfuModule {
   XSPerfAccumulate("stallCycles_fetch_uncache", io.perfInfo.checkPerfInfo.uncacheBubble)
 
   // DB
-  private val hartId                     = p(XSCoreParamsKey).HartId
+  private val hartId                     = p(XSHartIdKey).HartId
   private val isWriteFetchToIBufferTable = Constantin.createRecord(s"isWriteFetchToIBufferTable$hartId")
   private val isWriteIfuWbToFtqTable     = Constantin.createRecord(s"isWriteIfuWbToFtqTable$hartId")
   private val fetchToIBufferTable        = ChiselDB.createTable(s"FetchToIBuffer$hartId", new FetchToIBufferDB)
@@ -208,14 +209,14 @@ class IfuPerfAnalysis(implicit p: Parameters) extends IfuModule {
   fetchToIBufferTable.log(
     data = fetchIBufferDumpData,
     en = isWriteFetchToIBufferTable.orR && ibufferFire,
-    site = "IFU" + p(XSCoreParamsKey).HartId.toString,
+    site = "IFU" + p(XSHartIdKey).HartId.toString,
     clock = clock,
     reset = reset
   )
   ifuWbToFtqTable.log(
     data = ifuWbToFtqDumpData,
     en = isWriteIfuWbToFtqTable.orR && checkFetchValid(0) | checkFetchValid(1),
-    site = "IFU" + p(XSCoreParamsKey).HartId.toString,
+    site = "IFU" + p(XSHartIdKey).HartId.toString,
     clock = clock,
     reset = reset
   )

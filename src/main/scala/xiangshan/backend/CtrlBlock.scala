@@ -262,7 +262,7 @@ class CtrlBlockImp(
   memCtrl.io.memPredUpdate.valid := RegNext(mdpTrainValid) // pc is ready, 1 cycle later
 
   // StoreSet ChiselDB trace
-  val storeSetTrainHartId = p(XSCoreParamsKey).HartId
+  val storeSetTrainHartId = p(XSHartIdKey).HartId
   val storeSetTrainTable = ChiselDB.createTable(s"StoreSetTrainDB$storeSetTrainHartId", new StoreSetTrainDBEntry, basicDB = false)
   val storeSetTrainEntry = Wire(new StoreSetTrainDBEntry)
   storeSetTrainEntry.timeCnt := GTimer()

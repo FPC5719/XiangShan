@@ -104,7 +104,7 @@ class PrefetcherWrapper(implicit p: Parameters) extends PrefetchModule {
     // TODO: l2_pf degree control internally
   })
 
-  val hartId = p(XSCoreParamsKey).HartId
+  val hartId = p(XSHartIdKey).HartId
   val l1D_pf_enable = RegNextN(io.pfCtrlFromCSR.l1D_pf_enable, 2, Some(true.B))
   val pf_train_on_hit = RegNextN(io.pfCtrlFromCSR.l1D_pf_train_on_hit, 2, Some(true.B))
   val s2_loadPcVec = (0 until LD_TRAIN_WIDTH).map{ i=>

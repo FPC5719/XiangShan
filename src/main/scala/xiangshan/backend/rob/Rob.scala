@@ -354,7 +354,7 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
     val redirect_pc = UInt(VAddrBits.W)  // PC of the redirect uop
     val debugLsInfo = new DebugLsInfo()
   }
-  val tip_table = ChiselDB.createTable("Tip_" + p(XSCoreParamsKey).HartId.toString, new TipEntry)
+  val tip_table = ChiselDB.createTable("Tip_" + p(XSHartIdKey).HartId.toString, new TipEntry)
   val tip_data = Wire(new TipEntry())
   tip_data.state := tip_state
   tip_data.commits := io.commits
@@ -1476,8 +1476,8 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
    * log trigger is at writeback valid
    * */
   if (!env.FPGAPlatform) {
-    val instTableName = "InstTable" + p(XSCoreParamsKey).HartId.toString
-    val instSiteName = "Rob" + p(XSCoreParamsKey).HartId.toString
+    val instTableName = "InstTable" + p(XSHartIdKey).HartId.toString
+    val instSiteName = "Rob" + p(XSHartIdKey).HartId.toString
     val debug_instTable = ChiselDB.createTable(instTableName, new InstInfoEntry, basicDB = true)
     for (wb <- exuWBs) {
       when(wb.valid) {
@@ -1514,7 +1514,7 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
   }
 
   // log when committing
-  val load_debug_table = ChiselDB.createTable("LoadDebugTable" + p(XSCoreParamsKey).HartId.toString, new LoadInfoEntry, basicDB = true)
+  val load_debug_table = ChiselDB.createTable("LoadDebugTable" + p(XSHartIdKey).HartId.toString, new LoadInfoEntry, basicDB = true)
   for (i <- 0 until CommitWidth) {
     val log_enable = io.commits.commitValid(i) && io.commits.isCommit && (io.commits.info(i).commitType === CommitType.LOAD)
     val commit_index = io.commits.robIdx(i).value

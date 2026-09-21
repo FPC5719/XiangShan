@@ -1467,7 +1467,7 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   io.pf_ctrl <> prefetcherMonitor.io.pf_ctrl
 
   /** LoadMissDB: record load miss state */
-  val hartId = p(XSCoreParamsKey).HartId
+  val hartId = p(XSHartIdKey).HartId
   val isWriteLoadMissTable = Constantin.createRecord(s"isWriteLoadMissTable$hartId")
   val isFirstHitWrite = Constantin.createRecord(s"isFirstHitWrite$hartId")
   val tableName = s"LoadMissDB$hartId"

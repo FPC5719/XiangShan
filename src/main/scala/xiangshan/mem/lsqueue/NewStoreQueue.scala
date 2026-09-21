@@ -906,9 +906,9 @@ abstract class PhysicalStoreQueueBase(implicit p: Parameters) extends LSQModule 
 
     /*============================================ force write sbuffer ===============================================*/
     val ForceWriteUpper = Wire(UInt(log2Up(StoreQueuePhysicalSize + 1).W))
-    ForceWriteUpper := Constantin.createRecord(s"ForceWriteUpper_${p(XSCoreParamsKey).HartId}", initValue = StoreQueueForceWriteSbufferUpper)
+    ForceWriteUpper := Constantin.createRecord(s"ForceWriteUpper_${p(XSHartIdKey).HartId}", initValue = StoreQueueForceWriteSbufferUpper)
     val ForceWriteLower = Wire(UInt(log2Up(StoreQueuePhysicalSize + 1).W))
-    ForceWriteLower := Constantin.createRecord(s"ForceWriteLower_${p(XSCoreParamsKey).HartId}", initValue = StoreQueueForceWriteSbufferLower)
+    ForceWriteLower := Constantin.createRecord(s"ForceWriteLower_${p(XSHartIdKey).HartId}", initValue = StoreQueueForceWriteSbufferLower)
 
     val valid_cnt = io.validCnt
     io.sbufferCtrl.req.forceWrite := RegNext(Mux(valid_cnt >= ForceWriteUpper,

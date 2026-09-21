@@ -807,7 +807,7 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents {
   }
 
   // StoreSet ChiselDB trace
-  val storeSetPredHartId = p(XSCoreParamsKey).HartId
+  val storeSetPredHartId = p(XSHartIdKey).HartId
   val storeSetPredTable = ChiselDB.createTable(s"StoreSetPredDB$storeSetPredHartId", new StoreSetPredDBEntry, basicDB = false)
   for (i <- 0 until RenameWidth) {
     val storeSetPredEntry = Wire(new StoreSetPredDBEntry)

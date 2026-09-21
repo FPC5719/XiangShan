@@ -193,10 +193,13 @@ trait HasCoreLowPowerImp[+L <: HasXSTile] { this: BaseXSSocImp with HasXSTileCHI
 
 trait HasXSTile { this: BaseXSSoc =>
 
+  private val hartIdDomain = new HartIdDomain(1)
+
   // xstile
   val core_with_l2 = LazyModule(new XSTileWrap()(XSCachedParametersOptional(p(CachedParameterKey), p.alter((site, here, up) => {
     case XSCoreParamsKey => tiles.head
-    case PerfCounterOptionsKey => up(PerfCounterOptionsKey).copy(perfDBHartID = tiles.head.HartId)
+    case XSHartIdDomainKey => hartIdDomain
+    case PerfCounterOptionsKey => up(PerfCounterOptionsKey).copy(perfDBHartID = 0)
     case CHIDataCheckKey if isZhuJiang => "none"
     case CHIPoisonKey if isZhuJiang => false
   }))))

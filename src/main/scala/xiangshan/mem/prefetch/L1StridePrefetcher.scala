@@ -206,7 +206,7 @@ class StrideMetaArray(implicit p: Parameters) extends XSModule with HasStridePre
   val s1_stride_valid = WireInit(false.B)
   s0_can_accept := !(s1_valid && s1_pc_hash === s0_pc_hash)
 
-  val always_update = Constantin.createRecord(s"always_update${p(XSCoreParamsKey).HartId}", initValue = ALWAYS_UPDATE_PRE_VADDR)
+  val always_update = Constantin.createRecord(s"always_update${p(XSHartIdKey).HartId}", initValue = ALWAYS_UPDATE_PRE_VADDR)
 
   val s1_stat = WireInit(0.U.asTypeOf(new StatStrideBundle))
 
@@ -225,9 +225,9 @@ class StrideMetaArray(implicit p: Parameters) extends XSModule with HasStridePre
     s1_stat := res._5
   }
 
-  val l1_stride_ratio_const = Constantin.createRecord(s"l1_stride_ratio${p(XSCoreParamsKey).HartId}", initValue = 2)
+  val l1_stride_ratio_const = Constantin.createRecord(s"l1_stride_ratio${p(XSHartIdKey).HartId}", initValue = 2)
   val l1_stride_ratio = l1_stride_ratio_const(3, 0)
-  val l2_stride_ratio_const = Constantin.createRecord(s"l2_stride_ratio${p(XSCoreParamsKey).HartId}", initValue = 5)
+  val l2_stride_ratio_const = Constantin.createRecord(s"l2_stride_ratio${p(XSHartIdKey).HartId}", initValue = 5)
   val l2_stride_ratio = l2_stride_ratio_const(3, 0)
   // s2: calculate L1 & L2 pf addr
   val s2_valid = GatedValidRegNext(s1_valid && s1_can_send_pf)
@@ -322,7 +322,7 @@ class StrideMetaArray(implicit p: Parameters) extends XSModule with HasStridePre
   val strideLearn = Wire(new StrideLearn())
   strideLearn.stat := s1_stat
   strideLearn.pc := RegEnable(s0_pc, s0_valid)
-  val strideLearnDb = ChiselDB.createTable(s"StrideLearnTable${p(XSCoreParamsKey).HartId}", new StrideLearn, basicDB = true)
+  val strideLearnDb = ChiselDB.createTable(s"StrideLearnTable${p(XSHartIdKey).HartId}", new StrideLearn, basicDB = true)
   strideLearnDb.log(data = strideLearn, en = s1_update, clock = clock, reset = reset)
 
 }

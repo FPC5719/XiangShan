@@ -233,7 +233,7 @@ class StreamBitVectorArray(implicit p: Parameters) extends XSModule
     replacement.access(s0_index)
   }
 
-  val stream_pf_train_debug_table = ChiselDB.createTable("StreamTrainTraceTable" + p(XSCoreParamsKey).HartId.toString, new StreamTrainTraceEntry, basicDB = false)
+  val stream_pf_train_debug_table = ChiselDB.createTable("StreamTrainTraceTable" + p(XSHartIdKey).HartId.toString, new StreamTrainTraceEntry, basicDB = false)
 
   val spf_log_enable = s0_valid
   val spf_log_data = Wire(new StreamTrainTraceEntry)
@@ -275,15 +275,15 @@ class StreamBitVectorArray(implicit p: Parameters) extends XSModule
   XSPerfAccumulate("s0_req_valid", io.train_req.valid)
   XSPerfAccumulate("s0_req_cannot_accept", io.train_req.valid && !io.train_req.ready)
 
-  val ratio_const = Constantin.createRecord(s"l2DepthRatio${p(XSCoreParamsKey).HartId}", initValue = L2_DEPTH_RATIO)
+  val ratio_const = Constantin.createRecord(s"l2DepthRatio${p(XSHartIdKey).HartId}", initValue = L2_DEPTH_RATIO)
   val ratio = ratio_const(3, 0)
 
-  val l3_ratio_const = Constantin.createRecord(s"l3DepthRatio${p(XSCoreParamsKey).HartId}", initValue = L3_DEPTH_RATIO)
+  val l3_ratio_const = Constantin.createRecord(s"l3DepthRatio${p(XSHartIdKey).HartId}", initValue = L3_DEPTH_RATIO)
   val l3_ratio = l3_ratio_const(3, 0)
 
-  val l1_depth_const = Constantin.createRecord(s"streamL1Depth${p(XSCoreParamsKey).HartId}", initValue = 64)
-  val l2_depth_const = Constantin.createRecord(s"streamL2Depth${p(XSCoreParamsKey).HartId}", initValue = 640)
-  val l3_depth_const = Constantin.createRecord(s"streamL3Depth${p(XSCoreParamsKey).HartId}", initValue = 960) 
+  val l1_depth_const = Constantin.createRecord(s"streamL1Depth${p(XSHartIdKey).HartId}", initValue = 64)
+  val l2_depth_const = Constantin.createRecord(s"streamL2Depth${p(XSHartIdKey).HartId}", initValue = 640)
+  val l3_depth_const = Constantin.createRecord(s"streamL3Depth${p(XSHartIdKey).HartId}", initValue = 960) 
 
   val l1_depth = Wire(UInt(DEPTH_BITS.W))
   val l2_depth = Wire(UInt(DEPTH_BITS.W))
@@ -359,7 +359,7 @@ class StreamBitVectorArray(implicit p: Parameters) extends XSModule
   XSPerfAccumulate("s1_active_plus_one_hit", s1_valid && s1_plus_one_hit)
   XSPerfAccumulate("s1_active_minus_one_hit", s1_valid && s1_minus_one_hit)
 
-  val stream_array_table = ChiselDB.createTable("StreamArrayTable" + p(XSCoreParamsKey).HartId.toString, new StreamBitVectorBundle, basicDB = false)
+  val stream_array_table = ChiselDB.createTable("StreamArrayTable" + p(XSHartIdKey).HartId.toString, new StreamBitVectorBundle, basicDB = false)
   stream_array_table.log(
     data = array(s1_index),
     en = s1_alloc && valids(s1_index),
@@ -439,7 +439,7 @@ class StreamBitVectorArray(implicit p: Parameters) extends XSModule
   val s4_pf_l2_bits = RegEnable(s3_pf_l2_bits, s3_pf_l2_valid)
   val s4_pf_l3_bits = RegEnable(s3_pf_l3_bits, s3_pf_l2_valid)
 
-  val enable_l3_pf = Constantin.createRecord(s"enableL3StreamPrefetch${p(XSCoreParamsKey).HartId}", initValue = true)
+  val enable_l3_pf = Constantin.createRecord(s"enableL3StreamPrefetch${p(XSHartIdKey).HartId}", initValue = true)
   // s5: send the l3 prefetch req out
   val s5_pf_l3_valid = GatedValidRegNext(s4_pf_l2_valid) && enable_l3_pf
   val s5_pf_l3_bits = RegEnable(s4_pf_l3_bits, s4_pf_l2_valid)
