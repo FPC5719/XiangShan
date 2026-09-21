@@ -3,13 +3,13 @@
 	url = https://github.com/OpenXiangShan/rocket-chip.git
 [submodule "difftest"]
 	path = difftest
-	url = https://github.com/OpenXiangShan/difftest.git
+	url = https://github.com/FPC5719/difftest.git
 [submodule "ready-to-run"]
 	path = ready-to-run
 	url = https://github.com/OpenXiangShan/ready-to-run.git
 [submodule "utility"]
 	path = utility
-	url = https://github.com/OpenXiangShan/Utility.git
+	url = https://github.com/FPC5719/Utility.git
 [submodule "yunsuan"]
 	path = yunsuan
 	url = https://github.com/OpenXiangShan/YunSuan.git
