@@ -90,7 +90,8 @@ class MemXbar(implicit p: Parameters) extends LazyModule
 class XiangShanSim(implicit p: Parameters) extends Module with HasDiffTestInterfaces {
   val debugOpts = p(DebugOptionsKey)
 
-  val l_soc = LazyModule(new XSTop())
+  // SimTop performs the sole DiffTest collection after this CPU wrapper is instantiated.
+  val l_soc = LazyModule(new XSTop(collectDifftestInModule = false))
   val soc = Module(l_soc.module)
   // Don't allow the top-level signals to be optimized out,
   // so that we can re-use this XiangShanSim for any generated Verilog RTL.
