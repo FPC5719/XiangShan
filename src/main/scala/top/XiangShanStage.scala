@@ -41,7 +41,11 @@ class XiangShanStage extends ChiselStage {
         firrtl.options.Dependency[chisel3.stage.phases.AddImplicitOutputAnnotationFile],
         firrtl.options.Dependency[chisel3.stage.phases.AddSerializationAnnotations],
         firrtl.options.Dependency[chisel3.stage.phases.xiangshan.PrintModuleName],
-        firrtl.options.Dependency[chisel3.stage.phases.Convert],
+        // Convert to the legacy FIRRTL IR is deprecated and cannot represent
+        // `DefParamInstanceChoice` (used by ParamModuleChoice for per-hart choices).
+        // CIRCT serializes from the elaborated circuit directly, so skip it and publish the
+        // elaboration annotations separately.
+        firrtl.options.Dependency[chisel3.stage.phases.xiangshan.AddCircuitAnnotations],
         firrtl.options.Dependency[chisel3.stage.phases.AddDedupGroupAnnotations],
         firrtl.options.Dependency[circt.stage.phases.AddImplicitOutputFile],
         firrtl.options.Dependency[circt.stage.phases.CIRCT]
