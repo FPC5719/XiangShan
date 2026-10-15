@@ -19,6 +19,7 @@ package xiangshan.mem
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import freechips.rocketchip.util._
 import utils._
@@ -209,6 +210,9 @@ class Sbuffer(implicit p: Parameters)
     val force_write = Input(Bool())
     val diffStore = Input(new DiffStoreIO)
   })
+
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
 
   val dataModule = Module(new SbufferData)
   dataModule.io.writeReq <> DontCare
@@ -541,9 +545,9 @@ class Sbuffer(implicit p: Parameters)
   val cmo_empty = sbuffer_mshr_empty && inReq_empty
   val all_empty = cmo_empty && io.sqempty
   val threshold = Wire(UInt(5.W)) // RegNext(io.csrCtrl.sbuffer_threshold +& 1.U)
-  threshold := Constantin.createRecord(s"StoreBufferThreshold_${p(XSHartIdKey).HartId}", initValue = 9)
+  threshold := Constantin.PerHart().createRecord("StoreBufferThreshold", initValue = 9)
   val base = Wire(UInt(5.W))
-  base := Constantin.createRecord(s"StoreBufferBase_${p(XSHartIdKey).HartId}", initValue = 1)
+  base := Constantin.PerHart().createRecord("StoreBufferBase", initValue = 1)
   val ActiveCount = PopCount(activeMask)
   val ValidCount = PopCount(validMask)
   val forceThreshold = Mux(io.force_write, threshold - base, threshold)

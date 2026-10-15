@@ -26,6 +26,7 @@ package xiangshan.backend.rob
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 import difftest._
@@ -146,6 +147,9 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
       val pc     = Output(UInt(VAddrBits.W))
     })
   })
+
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
 
   val exuWBs: Seq[ValidIO[WriteBackRobBundle]] = io.exuWriteback
   val fflagsWBs = io.exuWriteback.filter(x => x.bits.fflags.nonEmpty).toSeq
@@ -354,7 +358,7 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
     val redirect_pc = UInt(VAddrBits.W)  // PC of the redirect uop
     val debugLsInfo = new DebugLsInfo()
   }
-  val tip_table = ChiselDB.createTable("Tip_" + p(XSHartIdKey).HartId.toString, new TipEntry)
+  val tip_table = ChiselDB.PerHart().createTable("Tip_", new TipEntry)
   val tip_data = Wire(new TipEntry())
   tip_data.state := tip_state
   tip_data.commits := io.commits
@@ -1476,9 +1480,9 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
    * log trigger is at writeback valid
    * */
   if (!env.FPGAPlatform) {
-    val instTableName = "InstTable" + p(XSHartIdKey).HartId.toString
-    val instSiteName = "Rob" + p(XSHartIdKey).HartId.toString
-    val debug_instTable = ChiselDB.createTable(instTableName, new InstInfoEntry, basicDB = true)
+    val instTableName = "InstTable"
+    val instSiteName = "Rob"
+    val debug_instTable = ChiselDB.PerHart().createTable(instTableName, new InstInfoEntry, basicDB = true)
     for (wb <- exuWBs) {
       when(wb.valid) {
         val debug_instData = Wire(new InstInfoEntry)
@@ -1514,7 +1518,7 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
   }
 
   // log when committing
-  val load_debug_table = ChiselDB.createTable("LoadDebugTable" + p(XSHartIdKey).HartId.toString, new LoadInfoEntry, basicDB = true)
+  val load_debug_table = ChiselDB.PerHart().createTable("LoadDebugTable", new LoadInfoEntry, basicDB = true)
   for (i <- 0 until CommitWidth) {
     val log_enable = io.commits.commitValid(i) && io.commits.isCommit && (io.commits.info(i).commitType === CommitType.LOAD)
     val commit_index = io.commits.robIdx(i).value

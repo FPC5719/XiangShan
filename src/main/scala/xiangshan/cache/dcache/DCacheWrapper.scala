@@ -18,6 +18,7 @@ package xiangshan.cache
 
 import chisel3._
 import chisel3.experimental.ExtModule
+import chisel3.properties.Property
 import chisel3.util._
 import xscache.coupledL2.{IsKeywordKey, IsKeywordField, MemBackTypeMMField, MemPageTypeNCField, PCField, VaddrField}
 import freechips.rocketchip.diplomacy._
@@ -1007,6 +1008,9 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
 
   val io = IO(new DCacheIO)
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   // ========== Multi-channel support ==========
   // All channels' bus/edge, indexed by channel.
   val buses: Seq[TLBundle] = outer.clientNodes.map(_.out.head._1)
@@ -1073,6 +1077,7 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   val accessArray = Module(new L1FlagMetaArray(readPorts = AccessArrayReadPort, writePorts = LoadPipelineWidth + 1))
   val tagArray = Module(new DuplicatedTagArray(readPorts = TagReadPort))
   val prefetcherMonitor = Module(new PrefetcherMonitor)
+  prefetcherMonitor.hartIdSelect := hartIdSelect
   val bloomFilter =  Module(new BloomFilter(BLOOM_FILTER_ENTRY_NUM, true))
   val counterFilter = Module(new CounterFilter)
   bankedDataArray.dump()
@@ -1097,6 +1102,10 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
 
   missQueue.io.lqEmpty := io.lqEmpty
   missQueue.io.hartId := io.hartId
+  bankedDataArray.hartIdSelect := hartIdSelect
+  ldu.foreach(_.hartIdSelect := hartIdSelect)
+  mainPipe.hartIdSelect := hartIdSelect
+  missQueue.hartIdSelect := hartIdSelect
   missQueue.io.l2_pf_store_only := RegNext(io.l2_pf_store_only, false.B)
   missQueue.io.debugTopDown <> io.debugTopDown
   missQueue.io.l2_hint <> RegNext(io.l2_hint)
@@ -1467,12 +1476,11 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   io.pf_ctrl <> prefetcherMonitor.io.pf_ctrl
 
   /** LoadMissDB: record load miss state */
-  val hartId = p(XSHartIdKey).HartId
-  val isWriteLoadMissTable = Constantin.createRecord(s"isWriteLoadMissTable$hartId")
-  val isFirstHitWrite = Constantin.createRecord(s"isFirstHitWrite$hartId")
-  val tableName = s"LoadMissDB$hartId"
-  val siteName = s"DcacheWrapper$hartId"
-  val loadMissTable = ChiselDB.createTable(tableName, new LoadMissEntry)
+  val isWriteLoadMissTable = Constantin.PerHart().createRecord("isWriteLoadMissTable")
+  val isFirstHitWrite = Constantin.PerHart().createRecord("isFirstHitWrite")
+  val tableName = "LoadMissDB"
+  val siteName = "DcacheWrapper"
+  val loadMissTable = ChiselDB.PerHart().createTable(tableName, new LoadMissEntry)
   for( i <- 0 until LoadPipelineWidth){
     val loadMissEntry = Wire(new LoadMissEntry)
     val loadMissWriteEn =
@@ -1496,8 +1504,8 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
     )
   }
 
-  val isWriteLoadAccessTable = Constantin.createRecord(s"isWriteLoadAccessTable$hartId")
-  val loadAccessTable = ChiselDB.createTable(s"LoadAccessDB$hartId", new LoadAccessEntry)
+  val isWriteLoadAccessTable = Constantin.PerHart().createRecord("isWriteLoadAccessTable")
+  val loadAccessTable = ChiselDB.PerHart().createTable("LoadAccessDB", new LoadAccessEntry)
   for (i <- 0 until LoadPipelineWidth) {
     val loadAccessEntry = Wire(new LoadAccessEntry)
     loadAccessEntry.timeCnt := GTimer()
@@ -1882,6 +1890,9 @@ class DCacheWrapper()(implicit p: Parameters) extends LazyModule
 
   class DCacheWrapperImp(wrapper: LazyModule) extends LazyModuleImp(wrapper) with HasPerfEvents {
     val io = IO(new DCacheIO)
+    // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+    val hartDomain = p(XSHartIdDomainKey)
+    val hartIdSelect = IO(Input(Property[hartDomain.Case]()))
     val perfEvents = if (!useDcache) {
       // a fake dcache which uses dpi-c to access memory, only for debug usage!
       val fake_dcache = Module(new FakeDCache())
@@ -1890,6 +1901,7 @@ class DCacheWrapper()(implicit p: Parameters) extends LazyModule
     }
     else {
       io <> dcache.module.io
+      dcache.module.hartIdSelect := hartIdSelect
       dcache.module.getPerfEvents
     }
     generatePerfEvent()

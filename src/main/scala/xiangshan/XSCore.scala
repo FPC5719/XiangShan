@@ -19,6 +19,7 @@ package xiangshan
 import org.chipsalliance.cde.config
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import xscache.coupledL2.{L2ToL1PfCtrl, PrefetchCtrlFromCore}
 import freechips.rocketchip.diplomacy.{BundleBridgeSource, LazyModule, LazyModuleImp}
@@ -120,6 +121,9 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
     val dft_reset = Option.when(hasDFT)(Input(new DFTResetSignals()))
   })
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   dontTouch(io.l2_flush_done)
   dontTouch(io.l2_flush_en)
   dontTouch(io.power_down_en)
@@ -130,6 +134,8 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   val backend = outer.backend.module
   val memBlock = outer.memBlock.module
 
+  backend.hartIdSelect := hartIdSelect
+  frontend.hartIdSelect := hartIdSelect
   frontend.io.hartId := memBlock.io.inner_hartId
   frontend.io.reset_vector := memBlock.io.inner_reset_vector
   frontend.io.softPrefetch <> memBlock.io.ifetchPrefetch
@@ -188,6 +194,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
     memBlock_teemsiInfo := io_teemsiInfo
   }
   memBlock.io.hartId := io.hartId
+  memBlock.hartIdSelect := hartIdSelect
   memBlock.io.l2_flush_done := io.l2_flush_done
   memBlock.io.outer_reset_vector := io.reset_vector
   memBlock.io.outer_hc_perfEvents := io.perfEvents

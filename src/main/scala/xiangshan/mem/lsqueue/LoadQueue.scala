@@ -18,6 +18,7 @@ package xiangshan.mem
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import utils._
 import utility._
@@ -228,6 +229,9 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   val loadQueueRAR = Module(new LoadQueueRAR)  //  read-after-read violation
   val loadQueueRAW = Module(new LoadQueueRAW)  //  read-after-write violation
   val loadQueueReplay = Module(new LoadQueueReplay)  //  enqueue if need replay
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+  loadQueueReplay.hartIdSelect := hartIdSelect
   val virtualLoadQueue = Module(new VirtualLoadQueue)  //  control state
   val uncacheBuffer = Module(new LoadQueueUncache) // uncache
   /**

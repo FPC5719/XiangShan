@@ -17,6 +17,7 @@
 package top
 
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import chisel3.experimental.dataview._
 import chisel3.experimental.noPrefix
@@ -193,7 +194,7 @@ trait HasCoreLowPowerImp[+L <: HasXSTile] { this: BaseXSSocImp with HasXSTileCHI
 
 trait HasXSTile { this: BaseXSSoc =>
 
-  private val hartIdDomain = new HartIdDomain(1)
+  val hartIdDomain = new HartIdDomain(1)
 
   // xstile
   val core_with_l2 = LazyModule(new XSTileWrap()(XSCachedParametersOptional(p(CachedParameterKey), p.alter((site, here, up) => {
@@ -227,6 +228,7 @@ trait HasXSTile { this: BaseXSSoc =>
 
 trait HasXSTileImp[+L <: HasXSTile] { this: BaseXSSocImp with HasAsyncClockImp =>
   def core_with_l2 = wrapper.asInstanceOf[L].core_with_l2
+  val hartIdDomain = wrapper.asInstanceOf[L].hartIdDomain
   def core_rst_node = wrapper.asInstanceOf[L].core_rst_node
   def clint = wrapper.asInstanceOf[L].clint
   def plic = wrapper.asInstanceOf[L].plic
@@ -253,6 +255,7 @@ trait HasXSTileImp[+L <: HasXSTile] { this: BaseXSSocImp with HasAsyncClockImp =
   tileio.hartIsInReset := core_with_l2.module.io.hartIsInReset
   core_with_l2.module.io.reset_vector := tileio.riscv_rst_vec
   core_with_l2.module.io.hartId := tileio.hartId
+  core_with_l2.module.hartIdSelect := Property(hartIdDomain.harts(0))
   core_with_l2.module.io.nodeID.get := tileio.nodeID
 
   /* dft */

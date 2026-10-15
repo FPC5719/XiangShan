@@ -17,6 +17,7 @@ package xiangshan.mem
 
 import org.chipsalliance.cde.config._
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import utility._
 import xiangshan._
@@ -267,6 +268,8 @@ class LoadQueueReplay(implicit p: Parameters) extends XSModule
   })
 
   println("LoadQueueReplay size: " + LoadQueueReplaySize)
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
   //  LoadQueueReplay field:
   //  +-----------+---------+-------+-------------+--------+
   //  | Allocated | MicroOp | VAddr |    Cause    |  Flags |
@@ -654,7 +657,7 @@ class LoadQueueReplay(implicit p: Parameters) extends XSModule
   val ColdDownCycles = 16
   val coldCounter = RegInit(VecInit(List.fill(LoadPipelineWidth)(0.U(log2Up(ColdDownCycles).W))))
   val ColdDownThreshold = Wire(UInt(log2Up(ColdDownCycles).W))
-  ColdDownThreshold := Constantin.createRecord(s"ColdDownThreshold_${p(XSHartIdKey).HartId}", initValue = 12)
+  ColdDownThreshold := Constantin.PerHart().createRecord("ColdDownThreshold", initValue = 12)
   assert(ColdDownCycles.U > ColdDownThreshold, "ColdDownCycles must great than ColdDownThreshold!")
 
   def replayCanFire(i: Int) = coldCounter(i) >= 0.U && coldCounter(i) < ColdDownThreshold

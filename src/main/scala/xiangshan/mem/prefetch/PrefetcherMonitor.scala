@@ -2,6 +2,7 @@ package xiangshan.mem.prefetch
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import utils._
 import utility._
@@ -66,6 +67,9 @@ class PrefetcherMonitorBundle()(implicit p: Parameters) extends XSBundle with Ha
 class PrefetcherMonitor()(implicit p: Parameters) extends XSModule with HasStreamPrefetchHelper {
   val io = IO(new PrefetcherMonitorBundle)
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   val prefetch_info = Wire(new L1PrefetchStatisticBundle)
   prefetch_info.loadinfo := io.loadinfo 
   prefetch_info.missinfo := io.missinfo
@@ -81,6 +85,9 @@ class PrefetcherMonitor()(implicit p: Parameters) extends XSModule with HasStrea
   val StreamMonitor = Module(new L1PrefetchMonitor(PrefetcherMonitorParam.fromString("stream")))
   val StrideMonitor = Module(new L1PrefetchMonitor(PrefetcherMonitorParam.fromString("stride")))
   val BertiMonitor = Module(new L1PrefetchMonitor(PrefetcherMonitorParam.fromString("berti")))
+  StreamMonitor.hartIdSelect := hartIdSelect
+  StrideMonitor.hartIdSelect := hartIdSelect
+  BertiMonitor.hartIdSelect := hartIdSelect
 
   StreamMonitor.io.prefetch_info:= RegNext(prefetch_info)
   StrideMonitor.io.prefetch_info := RegNext(prefetch_info)
@@ -164,6 +171,9 @@ class L1PrefetchMonitorBundle()(implicit p: Parameters) extends XSBundle {
 class L1PrefetchMonitor(param : PrefetcherMonitorParam)(implicit p: Parameters) extends XSModule with HasStreamPrefetchHelper {
   val io = IO(new L1PrefetchMonitorBundle)
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   val depth = Reg(UInt(DEPTH_BITS.W))
   val flush = RegInit(false.B)
   val enable = RegInit(true.B)
@@ -179,7 +189,7 @@ class L1PrefetchMonitor(param : PrefetcherMonitorParam)(implicit p: Parameters) 
   io.pf_ctrl.confidence := confidence
 
   val depth_const = Wire(UInt(DEPTH_BITS.W))
-  depth_const := Constantin.createRecord(s"${param.name}_depth${p(XSHartIdKey).HartId}", initValue = 32)
+  depth_const := Constantin.PerHart().createRecord(s"${param.name}_depth", initValue = 32)
 
   val total_prefetch_cnt = RegInit(0.U((log2Up(param.TIMELY_CHECK_INTERVAL) + 1).W))
   val pf_late_in_cache_cnt = RegInit(0.U((log2Up(param.TIMELY_CHECK_INTERVAL) + 1).W))
@@ -243,7 +253,7 @@ class L1PrefetchMonitor(param : PrefetcherMonitorParam)(implicit p: Parameters) 
     enable := false.B
   }
 
-  val enableDynamicPrefetcher_const = Constantin.createRecord(s"${param.name}_enableDynamicPrefetcher${p(XSHartIdKey).HartId}", initValue = 1)
+  val enableDynamicPrefetcher_const = Constantin.PerHart().createRecord(s"${param.name}_enableDynamicPrefetcher", initValue = 1)
   val enableDynamicPrefetcher = (enableDynamicPrefetcher_const === 1.U)
 
   when(!enableDynamicPrefetcher) {

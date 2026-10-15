@@ -17,6 +17,7 @@
 package xiangshan.mem
 
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import xscache.coupledL2.{L2ToL1PfCtrl, PrefetchCtrlFromCore, PrefetchRecv}
 import freechips.rocketchip.diplomacy._
@@ -454,6 +455,9 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
     val dft_reset_bcknd = Option.when(hasMbist)(Output(new DFTResetSignals()))
   })
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   require(HyuCnt == 0) // HybridUnit is not supported for now
   require(coreParams.dcacheParametersOpt.nonEmpty) // L1 dcache must be define for now
 
@@ -491,7 +495,6 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   dontTouch(io.inner_hc_perfEvents)
   dontTouch(io.outer_hc_perfEvents)
 
-  val hartId = p(XSHartIdKey).HartId
   val redirect = RegNextWithEnable(io.redirect)
 
   private val dcache = outer.dcache.module
@@ -510,6 +513,7 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   }
 
   val newLoadUnits = Seq.tabulate(LduCnt)(i => Module(new NewLoadUnit(ldaParams(i))))
+  newLoadUnits.foreach(_.hartIdSelect := hartIdSelect)
   val storeUnits = Seq.tabulate(StaCnt)(i => Module(new NewStoreUnit(staParams(i))))
   val stdExeUnits = Seq.tabulate(StdCnt)(i => Module(new StdExeUnit(stdParams(i))))
 
@@ -591,8 +595,11 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   io.mem_to_ooo.stIssuePtr := lsq.io.issuePtrExt
 
   dcache.io.hartId := io.hartId
+  dcache.hartIdSelect := hartIdSelect
   lsq.io.hartId := io.hartId
+  lsq.hartIdSelect := hartIdSelect
   sbuffer.io.hartId := io.hartId
+  sbuffer.hartIdSelect := hartIdSelect
   atomicsUnit.io.hartId := io.hartId
 
   dcache.io.lqEmpty := lsq.io.lqEmpty
@@ -606,6 +613,7 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   private val ptw_to_l2_buffer = outer.ptw_to_l2_buffer.module
   private val l1d_to_l2_buffer = outer.l1d_to_l2_buffer.map(_.module)
   ptw.io.hartId := io.hartId
+  ptw.hartIdSelect := hartIdSelect
   ptw.io.sfence <> sfence
   ptw.io.csr.tlb <> tlbcsr
   ptw.io.csr.distribute_csr <> csrCtrl.distribute_csr
@@ -776,6 +784,7 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   /** prefetcher site in L1 */
   val l1_pf_req = Wire(Decoupled(new L1PrefetchReq()))
   val prefetcher = Module(new PrefetcherWrapper)
+  prefetcher.hartIdSelect := hartIdSelect
   prefetcher.io.pfCtrlFromTile.l2PfqBusy := io.l2PfqBusy
   prefetcher.io.l2_fdbk_pf_ctrl := io.l2_fdbk_pf_ctrl
   prefetcher.io.pfCtrlFromCSR := io.ooo_to_mem.csrCtrl.pf_ctrl
@@ -1612,8 +1621,11 @@ class MemBlock()(implicit p: Parameters) extends LazyModule
 class MemBlockImp(wrapper: MemBlock) extends LazyModuleImp(wrapper) {
   val io = IO(wrapper.inner.module.io.cloneType)
   val io_perf = IO(wrapper.inner.module.io_perf.cloneType)
+  val hartDomain = p(XSHartIdDomainKey)
+  val hartIdSelect = IO(Input(Property[hartDomain.Case]()))
   io <> wrapper.inner.module.io
   io_perf <> wrapper.inner.module.io_perf
+  wrapper.inner.module.hartIdSelect := hartIdSelect
 
   if (p(DebugOptionsKey).ResetGen) {
     ResetGen(

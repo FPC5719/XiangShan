@@ -18,6 +18,7 @@ package xiangshan.backend.dispatch
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import chisel3.util.experimental.decode._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
@@ -158,6 +159,10 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents {
     val debugRobHeadStall = Option.when(backendParams.debugEn)(Flipped(Valid(UInt(log2Ceil(TopDownCounters.NumStallReasons.id).W))))
     val debugRobTrueCommit = Option.when(backendParams.debugEn)(Input(UInt(64.W)))
   })
+
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   // Deq for std's IQ is not assigned in Dispatch2Iq, so add one more src for it.
   val issueBlockParams = backendParams.allIssueParams
   val renameIn = io.renameIn
@@ -807,8 +812,7 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents {
   }
 
   // StoreSet ChiselDB trace
-  val storeSetPredHartId = p(XSHartIdKey).HartId
-  val storeSetPredTable = ChiselDB.createTable(s"StoreSetPredDB$storeSetPredHartId", new StoreSetPredDBEntry, basicDB = false)
+  val storeSetPredTable = ChiselDB.PerHart().createTable("StoreSetPredDB", new StoreSetPredDBEntry, basicDB = false)
   for (i <- 0 until RenameWidth) {
     val storeSetPredEntry = Wire(new StoreSetPredDBEntry)
     storeSetPredEntry.timeCnt := GTimer()
@@ -827,7 +831,7 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents {
     storeSetPredTable.log(
       data = storeSetPredEntry,
       en = fromRename(i).fire && updatedUop(i).storeSetHit,
-      site = s"Dispatch$storeSetPredHartId",
+      site = "Dispatch",
       clock = clock,
       reset = reset
     )

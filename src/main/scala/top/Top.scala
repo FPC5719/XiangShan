@@ -18,6 +18,7 @@
 package top
 
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import chisel3.experimental.dataview._
 import difftest.{DifftestMemIO, DifftestModule, HasDiffTestInterfaces}
@@ -463,7 +464,9 @@ class XSTop(collectDifftestInModule: Boolean = true)(implicit p: Parameters) ext
     }
 
     for ((core, i) <- core_with_l2.zipWithIndex) {
+      require(i < hartIdDomain.numHarts, s"hart $i out of range for ${hartIdDomain.numHarts} harts")
       core.module.io.hartId := i.U
+      core.module.hartIdSelect := Property(hartIdDomain.harts(i))
       core.module.io.msiInfo.valid := imsic_bus_tops(i).module.msiio.vld_req
       core.module.io.msiInfo.bits := imsic_bus_tops(i).module.msiio.data
       imsic_bus_tops(i).module.msiio.vld_ack := core.module.io.msiAck

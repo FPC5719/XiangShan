@@ -18,6 +18,7 @@ package xiangshan.backend
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utility._
@@ -110,6 +111,9 @@ class CtrlBlockImp(
 
   val io = IO(new CtrlBlockIO())
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   val dispatch = Module(new Dispatch)
   val gpaMem = wrapper.gpaMem.module
   val decode = wrapper.decode.module
@@ -121,6 +125,9 @@ class CtrlBlockImp(
   private val pcMem = Module(new SyncDataModuleTemplate(GuardedPc(), FtqSize, numPcMemRead, 1, "BackendPC", hasRen = hasRen))
   private val rob = wrapper.rob.module
   private val memCtrl = Module(new MemCtrl(params))
+  rob.hartIdSelect := hartIdSelect
+  dispatch.hartIdSelect := hartIdSelect
+  memCtrl.hartIdSelect := hartIdSelect
 
   private val disableFusion = decode.in.fromCSR.singlestep || !decode.in.fromCSR.custom.fusion_enable
 
@@ -262,8 +269,7 @@ class CtrlBlockImp(
   memCtrl.io.memPredUpdate.valid := RegNext(mdpTrainValid) // pc is ready, 1 cycle later
 
   // StoreSet ChiselDB trace
-  val storeSetTrainHartId = p(XSHartIdKey).HartId
-  val storeSetTrainTable = ChiselDB.createTable(s"StoreSetTrainDB$storeSetTrainHartId", new StoreSetTrainDBEntry, basicDB = false)
+  val storeSetTrainTable = ChiselDB.PerHart().createTable("StoreSetTrainDB", new StoreSetTrainDBEntry, basicDB = false)
   val storeSetTrainEntry = Wire(new StoreSetTrainDBEntry)
   storeSetTrainEntry.timeCnt := GTimer()
   storeSetTrainEntry.ldFoldPc := memCtrl.io.memPredUpdate.ldpc
@@ -271,7 +277,7 @@ class CtrlBlockImp(
   storeSetTrainTable.log(
     data = storeSetTrainEntry,
     en = memCtrl.io.memPredUpdate.valid,
-    site = s"CtrlBlock$storeSetTrainHartId",
+    site = "CtrlBlock",
     clock = clock,
     reset = reset
   )

@@ -3,6 +3,7 @@ package xiangshan.backend.ctrlblock
 import org.chipsalliance.cde.config.Parameters
 import chisel3.util.ValidIO
 import chisel3._
+import chisel3.properties.Property
 import xiangshan.backend.BackendParams
 import xiangshan.{CustomCSRCtrlIO, MemPredUpdateReq, XSBundle, XSModule}
 import xiangshan.mem.mdp.{DispatchLFSTIO, LFST, SSIT, SSITEntry, WaitTable}
@@ -12,8 +13,12 @@ import xiangshan.mem.SqPtr
 class MemCtrl(params: BackendParams)(implicit p: Parameters) extends XSModule {
   val io = IO(new MemCtrlIO(params))
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   private val ssit = Module(new SSIT)
   private val lfst = Module(new LFST)
+  ssit.hartIdSelect := hartIdSelect
   ssit.io.update <> RegNext(io.memPredUpdate)
   ssit.io.csrCtrl := RegNext(io.csrCtrl)
 

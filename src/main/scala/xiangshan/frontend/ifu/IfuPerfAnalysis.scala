@@ -16,6 +16,7 @@
 package xiangshan.frontend.ifu
 
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import utility.ChiselDB
@@ -28,7 +29,6 @@ import utility.XSPerfHistogram
 import xiangshan.Redirect
 import xiangshan.TopDownCounters
 import xiangshan.XSCoreParamsKey
-import xiangshan.XSHartIdKey
 import xiangshan.frontend.BackendRedirectTopdown
 import xiangshan.frontend.FrontendTopDownBundle
 import xiangshan.frontend.icache.ICachePerfInfo
@@ -82,6 +82,8 @@ class IfuPerfAnalysis(implicit p: Parameters) extends IfuModule {
     val perfInfo:    IfuPerfInfo   = Input(new IfuPerfInfo)
   }
   val io: PerfAnalysisIO = IO(new PerfAnalysisIO)
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
   private val icacheTopdown     = io.topdownIn.icacheTopdown
   private val ftqTopdown        = io.topdownIn.ftqTopdown
   private val s3_icachePerfInfo = io.perfInfo.icachePerfInfo
@@ -179,11 +181,10 @@ class IfuPerfAnalysis(implicit p: Parameters) extends IfuModule {
   XSPerfAccumulate("stallCycles_fetch_uncache", io.perfInfo.checkPerfInfo.uncacheBubble)
 
   // DB
-  private val hartId                     = p(XSHartIdKey).HartId
-  private val isWriteFetchToIBufferTable = Constantin.createRecord(s"isWriteFetchToIBufferTable$hartId")
-  private val isWriteIfuWbToFtqTable     = Constantin.createRecord(s"isWriteIfuWbToFtqTable$hartId")
-  private val fetchToIBufferTable        = ChiselDB.createTable(s"FetchToIBuffer$hartId", new FetchToIBufferDB)
-  private val ifuWbToFtqTable            = ChiselDB.createTable(s"IfuWbToFtq$hartId", new IfuWbToFtqDB)
+  private val isWriteFetchToIBufferTable = Constantin.PerHart().createRecord("isWriteFetchToIBufferTable")
+  private val isWriteIfuWbToFtqTable     = Constantin.PerHart().createRecord("isWriteIfuWbToFtqTable")
+  private val fetchToIBufferTable        = ChiselDB.PerHart().createTable("FetchToIBuffer", new FetchToIBufferDB)
+  private val ifuWbToFtqTable            = ChiselDB.PerHart().createTable("IfuWbToFtq", new IfuWbToFtqDB)
 
   private val fetchIBufferDumpData = Wire(new FetchToIBufferDB)
   fetchIBufferDumpData.startAddr(0) := toIBufferInfo.startVAddr(0)
@@ -209,14 +210,14 @@ class IfuPerfAnalysis(implicit p: Parameters) extends IfuModule {
   fetchToIBufferTable.log(
     data = fetchIBufferDumpData,
     en = isWriteFetchToIBufferTable.orR && ibufferFire,
-    site = "IFU" + p(XSHartIdKey).HartId.toString,
+    site = "IFU",
     clock = clock,
     reset = reset
   )
   ifuWbToFtqTable.log(
     data = ifuWbToFtqDumpData,
     en = isWriteIfuWbToFtqTable.orR && checkFetchValid(0) | checkFetchValid(1),
-    site = "IFU" + p(XSHartIdKey).HartId.toString,
+    site = "IFU",
     clock = clock,
     reset = reset
   )

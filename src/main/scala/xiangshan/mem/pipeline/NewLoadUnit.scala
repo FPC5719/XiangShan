@@ -18,6 +18,7 @@ package xiangshan.mem
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import top.{ArgParser, Generator}
 import utility._
@@ -1364,6 +1365,9 @@ class LoadUnitS3(param: ExeUnitParams)(
   val causeOrR = in.causeOrR.get
   val shouldReplay = causeOrR || in.shouldFastReplay.get
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   assert(!pipeIn.valid || !accessType.isHwPrefetch(), "HwPrefetch should be killed in S2")
 
   /**
@@ -1631,9 +1635,8 @@ class LoadUnitS3(param: ExeUnitParams)(
   perfMdpAddr.perfLqFull := io.perfLqFull
 
   // StoreSet ChiselDB trace
-  val storeSetLoadUnitCheckHartId = p(XSHartIdKey).HartId
-  val storeSetLoadUnitCheckTable = ChiselDB.createTable(
-    s"StoreSetLoadUnitCheckDB$storeSetLoadUnitCheckHartId",
+  val storeSetLoadUnitCheckTable = ChiselDB.PerHart().createTable(
+    "StoreSetLoadUnitCheckDB",
     new StoreSetLoadUnitCheckDBEntry,
     basicDB = false
   )
@@ -1659,7 +1662,7 @@ class LoadUnitS3(param: ExeUnitParams)(
     data = storeSetLoadUnitCheckEntry,
     en = lqWriteValid &&
       storeSetLoadUnitCheckUop.storeSetHit && storeSetLoadUnitCheckUop.loadWaitBit,
-    site = s"${param.name}_StoreSetLoadUnitCheck$storeSetLoadUnitCheckHartId",
+    site = s"${param.name}_StoreSetLoadUnitCheck",
     clock = clock,
     reset = reset
   )
@@ -2044,11 +2047,15 @@ class LoadUnitIO(val param: ExeUnitParams)(implicit p: Parameters) extends XSBun
 class NewLoadUnit(val param: ExeUnitParams)(implicit p: Parameters) extends XSModule with HasPerfEvents {
   val io = IO(new LoadUnitIO(param))
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   val s0 = Module(new LoadUnitS0(param))
   val s1 = Module(new LoadUnitS1(param))
   val s2 = Module(new LoadUnitS2(param))
   val s3 = Module(new LoadUnitS3(param))
   val s4 = Module(new LoadUnitS4(param))
+  s3.hartIdSelect := hartIdSelect
   val dataPath = Module(new LoadUnitDataPath(param))
   val stages = Seq(s0, s1, s2, s3, s4)
 

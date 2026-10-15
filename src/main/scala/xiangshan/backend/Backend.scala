@@ -25,6 +25,7 @@ package xiangshan.backend
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import system.HasSoCParameter
@@ -60,7 +61,11 @@ class Backend(val params: BackendParams)(implicit p: Parameters) extends LazyMod
 
 class BackendImp(wrapper: Backend)(implicit p: Parameters) extends LazyModuleImp(wrapper) {
   val io = IO(new BackendIO()(p, wrapper.params))
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  val hartDomain = p(XSHartIdDomainKey)
+  val hartIdSelect = IO(Input(Property[hartDomain.Case]()))
   io <> wrapper.inner.module.io
+  wrapper.inner.module.hartIdSelect := hartIdSelect
   if (p(DebugOptionsKey).ResetGen) {
     ResetGen(ResetGenNode(Seq(ModuleNode(wrapper.inner.module))), reset, sim = false, io.dft_reset)
   }
@@ -190,6 +195,9 @@ class BackendInlinedImp(override val wrapper: BackendInlined)(implicit p: Parame
 
   val io = IO(new BackendIO()(p, wrapper.params))
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   private val ctrlBlock = wrapper.ctrlBlock.module
   private val intRegion = Module(new Region(params.intSchdParams.get))
   private val fpRegion: FltRegionImp = wrapper.fpRegion.module
@@ -206,6 +214,7 @@ class BackendInlinedImp(override val wrapper: BackendInlined)(implicit p: Parame
   private val backendCriticalError = Wire(Bool())
 
   ctrlBlock.io.fromTop.hartId := io.fromTop.hartId
+  ctrlBlock.hartIdSelect := hartIdSelect
   ctrlBlock.io.frontend <> io.frontend
   ctrlBlock.io.fromBJUResolve := intRegion.io.toFrontendBJUResolve.get
   ctrlBlock.io.fromCSR.toDecode := intRegion.io.csrToDecode.get

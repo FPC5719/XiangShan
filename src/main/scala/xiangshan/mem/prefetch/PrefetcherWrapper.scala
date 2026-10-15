@@ -1,6 +1,7 @@
 package xiangshan.mem.prefetch
 
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import utility._
@@ -104,7 +105,8 @@ class PrefetcherWrapper(implicit p: Parameters) extends PrefetchModule {
     // TODO: l2_pf degree control internally
   })
 
-  val hartId = p(XSHartIdKey).HartId
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
   val l1D_pf_enable = RegNextN(io.pfCtrlFromCSR.l1D_pf_enable, 2, Some(true.B))
   val pf_train_on_hit = RegNextN(io.pfCtrlFromCSR.l1D_pf_train_on_hit, 2, Some(true.B))
   val s2_loadPcVec = (0 until LD_TRAIN_WIDTH).map{ i=>
@@ -162,13 +164,14 @@ class PrefetcherWrapper(implicit p: Parameters) extends PrefetchModule {
 
   private val Seq(bothOff, strideOnBertiOff, strideOffBertiOn, bothOn) = Seq(0, 1, 2, 3)
   // strideOffBertiOn: if you enable Berti, Stride will be closed by default.
-  val modeStrideBerti = Constantin.createRecord(s"pf_modeStrideBerti$hartId", initValue = modeStrideBertiDefault)
+  val modeStrideBerti = Constantin.PerHart().createRecord("pf_modeStrideBerti", initValue = modeStrideBertiDefault)
   val strideModeEnable = modeStrideBerti =/= bothOff.U && !(modeStrideBerti === strideOffBertiOn.U && HasBerti.B)
   val bertiModeEnable = modeStrideBerti =/= bothOff.U && !(modeStrideBerti === strideOnBertiOff.U && HasStreamStride.B)
 
   val smsOpt: Option[SMSPrefetcher] = if(HasSMS) Some(Module(new SMSPrefetcher())) else None
   smsOpt.foreach (pf => {
-    val enableSMS = Constantin.createRecord(s"pf_enableSMS$hartId", initValue = true)
+    pf.hartIdSelect := hartIdSelect
+    val enableSMS = Constantin.PerHart().createRecord("pf_enableSMS", initValue = true)
     // constantinCtrl && master switch csrCtrl && single switch csrCtrl
     pf.io.enable := enableSMS && l1D_pf_enable
     pf.io.fdbkDegree := io.l2_fdbk_pf_ctrl.smsDegree
@@ -218,8 +221,9 @@ class PrefetcherWrapper(implicit p: Parameters) extends PrefetchModule {
 
   val streamStrideOpt: Option[L1Prefetcher] = if(HasStreamStride) Some(Module(new L1Prefetcher())) else None
   streamStrideOpt.foreach(pf => {
-    val enableL1StreamPrefetcher = Constantin.createRecord(s"pf_enableL1StreamPrefetcher$hartId", initValue = true)
-    val enableL1StridePrefetcher = Constantin.createRecord(s"pf_enableL1StridePrefetcher$hartId", initValue = true)
+    pf.hartIdSelect := hartIdSelect
+    val enableL1StreamPrefetcher = Constantin.PerHart().createRecord("pf_enableL1StreamPrefetcher", initValue = true)
+    val enableL1StridePrefetcher = Constantin.PerHart().createRecord("pf_enableL1StridePrefetcher", initValue = true)
     // constantinCtrl && master switch csrCtrl && single switch csrCtrl
     pf.io.enable := l1D_pf_enable
     pf.io.fdbkDegree := 1.U
@@ -267,7 +271,8 @@ class PrefetcherWrapper(implicit p: Parameters) extends PrefetchModule {
 
   val bertiOpt: Option[BertiPrefetcher] = if(HasBerti) Some(Module(new BertiPrefetcher())) else None
   bertiOpt.foreach(pf => {
-    val enableBerti = Constantin.createRecord(s"pf_enableBerti$hartId", initValue = true)
+    pf.hartIdSelect := hartIdSelect
+    val enableBerti = Constantin.PerHart().createRecord("pf_enableBerti", initValue = true)
     // constantinCtrl && master switch csrCtrl && single switch csrCtrl
     pf.io.enable := enableBerti && l1D_pf_enable &&
       GatedRegNextN(io.pfCtrlFromCSR.l1D_pf_berti_enable, 2, Some(false.B)) &&
@@ -339,7 +344,7 @@ class PrefetcherWrapper(implicit p: Parameters) extends PrefetchModule {
 
   val l2_trace = Wire(new LoadPfDbBundle)
   l2_trace.paddr := l2_pf_req.bits.addr
-  val l2_trace_table = ChiselDB.createTable(s"L2PrefetchTrace$hartId", new LoadPfDbBundle, basicDB = false)
+  val l2_trace_table = ChiselDB.PerHart().createTable("L2PrefetchTrace", new LoadPfDbBundle, basicDB = false)
   when(l2_pf_req.bits.source === MemReqSource.Prefetch2L2Stream.id.U || l2_pf_req.bits.source === MemReqSource.Prefetch2L2Stride.id.U) {
     l2_trace_table.log(l2_trace, l2_pf_req.valid, "L2StreamStride", clock, reset) 
   }.elsewhen(l2_pf_req.bits.source === MemReqSource.Prefetch2L2SMS.id.U) {

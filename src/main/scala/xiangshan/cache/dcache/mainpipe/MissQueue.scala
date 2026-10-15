@@ -25,6 +25,7 @@ package xiangshan.cache
 
 import chisel3._
 import chisel3.experimental.dataview._
+import chisel3.properties.Property
 import chisel3.util._
 import xscache.coupledL2.{IsKeywordKey, MemBackTypeMM, MemPageTypeNC, PCKey, VaddrKey}
 import difftest._
@@ -1237,6 +1238,9 @@ class MissQueue(edge: TLEdgeOut, reqNum: Int)(implicit p: Parameters) extends DC
     val l1Miss = Output(Bool())
   })
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   // 128KBL1: FIXME: provide vaddr for l2
 
   val entries = Seq.fill(cfg.nMissEntries)(Module(new MissEntry(edge, reqNum)))
@@ -1725,7 +1729,7 @@ class MissQueue(edge: TLEdgeOut, reqNum: Int)(implicit p: Parameters) extends DC
     io.mem_grant(ch).ready := false.B
   }
 
-  val nMaxPrefetchEntry = Constantin.createRecord(s"nMaxPrefetchEntry${p(XSHartIdKey).HartId}", initValue = cfg.nMissEntries - 2)
+  val nMaxPrefetchEntry = Constantin.PerHart().createRecord("nMaxPrefetchEntry", initValue = cfg.nMissEntries - 2)
   entries.zipWithIndex.foreach {
     case (e, i) =>
       val former_primary_ready = if(i == 0)
@@ -1930,8 +1934,8 @@ class MissQueue(edge: TLEdgeOut, reqNum: Int)(implicit p: Parameters) extends DC
     debug_miss_trace_vec(i).pc := io.queryMQ(i).req.bits.pc
   }
 
-  val isWriteL1MissQMissTable = Constantin.createRecord(s"isWriteL1MissQMissTable${p(XSHartIdKey).HartId}")
-  val table = ChiselDB.createTable(s"L1MissQMissTrace_hart${p(XSHartIdKey).HartId}", new L1MissTrace)
+  val isWriteL1MissQMissTable = Constantin.PerHart().createRecord("isWriteL1MissQMissTable")
+  val table = ChiselDB.PerHart().createTable("L1MissQMissTrace", new L1MissTrace)
   for (i <- 0 until reqNum) {
     table.log(debug_miss_trace_vec(i), isWriteL1MissQMissTable.orR && query_fire(i) && !io.queryMQ(i).req.bits.cancel && ((analysis.strategy(i) & 1.U) =/= 0.U), s"MissQueue_$i", clock, reset)
   }

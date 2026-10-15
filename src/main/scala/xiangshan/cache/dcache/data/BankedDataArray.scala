@@ -27,13 +27,14 @@ package xiangshan.cache
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import utils._
 import utility._
 import utility.sram.SRAMTemplate
 import chisel3.util._
 import utility.mbist.MbistPipeline
 import xiangshan.mem.LqPtr
-import xiangshan.{L1CacheErrorInfo, XSCoreParamsKey, XSHartIdKey}
+import xiangshan.{L1CacheErrorInfo, XSCoreParamsKey}
 
 import scala.math.max
 
@@ -275,6 +276,9 @@ abstract class AbstractBankedDataArray(implicit p: Parameters) extends DCacheMod
     val disable_ld_fast_wakeup = Output(Vec(LoadPipelineWidth, Bool()))
     val pseudo_error = Flipped(DecoupledIO(Vec(DCacheBanks, new CtrlUnitSignalingBundle)))
   })
+
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
 
   // Half of the data banks use the duplicate address path to reduce fanout.
   def DuplicatedQueryBankSeq = 0 until DCacheBanks / 2
@@ -621,9 +625,9 @@ class SramedDataArray(implicit p: Parameters) extends AbstractBankedDataArray {
     }
   }
 
-  val tableName =  "BankConflict" + p(XSHartIdKey).HartId.toString
-  val siteName = "BankedDataArray" + p(XSHartIdKey).HartId.toString
-  val bankConflictTable = ChiselDB.createTable(tableName, new BankConflictDB)
+  val tableName = "BankConflict"
+  val siteName = "BankedDataArray"
+  val bankConflictTable = ChiselDB.PerHart().createTable(tableName, new BankConflictDB)
   val bankConflictData = Wire(new BankConflictDB)
   for (i <- 0 until LoadPipelineWidth) {
     bankConflictData.set_index(i) := set_addrs(i)
@@ -645,7 +649,7 @@ class SramedDataArray(implicit p: Parameters) extends AbstractBankedDataArray {
     bankConflictData.fake_rr_bank_conflict := false.B
   }
 
-  val isWriteBankConflictTable = Constantin.createRecord(s"isWriteBankConflictTable${p(XSHartIdKey).HartId}")
+  val isWriteBankConflictTable = Constantin.PerHart().createRecord("isWriteBankConflictTable")
   bankConflictTable.log(
     data = bankConflictData,
     en = isWriteBankConflictTable.orR && rr_bank_conflict(0)(1),
@@ -999,9 +1003,9 @@ class BankedDataArray(implicit p: Parameters) extends AbstractBankedDataArray {
     }
   }
 
-  val tableName = "BankConflict" + p(XSHartIdKey).HartId.toString
-  val siteName = "BankedDataArray" + p(XSHartIdKey).HartId.toString
-  val bankConflictTable = ChiselDB.createTable(tableName, new BankConflictDB)
+  val tableName = "BankConflict"
+  val siteName = "BankedDataArray"
+  val bankConflictTable = ChiselDB.PerHart().createTable(tableName, new BankConflictDB)
   val bankConflictData = Wire(new BankConflictDB)
   for (i <- 0 until LoadPipelineWidth) {
     bankConflictData.set_index(i) := set_addrs(i)
@@ -1023,7 +1027,7 @@ class BankedDataArray(implicit p: Parameters) extends AbstractBankedDataArray {
     bankConflictData.fake_rr_bank_conflict := false.B
   }
 
-  val isWriteBankConflictTable = Constantin.createRecord(s"isWriteBankConflictTable${p(XSHartIdKey).HartId}")
+  val isWriteBankConflictTable = Constantin.PerHart().createRecord("isWriteBankConflictTable")
   bankConflictTable.log(
     data = bankConflictData,
     en = isWriteBankConflictTable.orR && rr_bank_conflict(0)(1),

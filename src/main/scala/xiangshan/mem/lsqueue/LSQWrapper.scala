@@ -18,6 +18,7 @@ package xiangshan.mem
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import utils._
 import utility._
@@ -157,6 +158,11 @@ class LsqWrapper(implicit p: Parameters) extends XSModule
   val loadQueue = Module(new LoadQueue)
   val storeQueue = Module(new StoreQueue)
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
+  loadQueue.hartIdSelect := hartIdSelect
+  storeQueue.hartIdSelect := hartIdSelect
   storeQueue.io.hartId := io.hartId
   storeQueue.io.wfi <> io.wfi
 

@@ -1,6 +1,7 @@
 package xiangshan.mem.prefetch
 
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import freechips.rocketchip.util._
 import org.chipsalliance.cde.config.Parameters
@@ -317,6 +318,9 @@ class MutiLevelPrefetchFilter(implicit p: Parameters) extends XSModule with HasL
     val l2PfqBusy = Input(Bool())
   })
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   val l1_array = Reg(Vec(MLP_L1_SIZE, new MLPReqFilterBundle))
   val l2_array = Reg(Vec(MLP_L2_SIZE, new MLPReqFilterBundle))
   val l3_array = Reg(Vec(MLP_L3_SIZE, new MLPReqFilterBundle))
@@ -561,7 +565,7 @@ class MutiLevelPrefetchFilter(implicit p: Parameters) extends XSModule with HasL
   // if a PfGen comes, new added request can be new_req = PfGen.region_bits & ~(pending)
   // Alloc:
   // new_req = PfGen.region_bits
-  val stream_pf_trace_debug_table = ChiselDB.createTable("StreamPFTrace" + p(XSHartIdKey).HartId.toString, new StreamPFTraceInEntry, basicDB = false)
+  val stream_pf_trace_debug_table = ChiselDB.PerHart().createTable("StreamPFTrace", new StreamPFTraceInEntry, basicDB = false)
   for (i <- 0 until BIT_VEC_WITDH) {
     // l1 enq log
     val hit_entry = l1_array(s0_l1_index)
@@ -880,7 +884,7 @@ class MutiLevelPrefetchFilter(implicit p: Parameters) extends XSModule with HasL
     }
   }
 
-  val stream_out_debug_table = ChiselDB.createTable("StreamPFTraceOut" + p(XSHartIdKey).HartId.toString, new StreamPFTraceOutEntry, basicDB = false)
+  val stream_out_debug_table = ChiselDB.PerHart().createTable("StreamPFTraceOut", new StreamPFTraceOutEntry, basicDB = false)
   val l1_debug_data = Wire(new StreamPFTraceOutEntry)
   val l2_debug_data = Wire(new StreamPFTraceOutEntry)
   l1_debug_data.PFVaddr := l1_pf_req_arb.io.out.bits.debug_vaddr
@@ -1001,6 +1005,9 @@ class L1Prefetcher(implicit p: Parameters) extends BasePrefecher with HasStreamP
   val stream_train_filter = Module(new TrainFilter(STREAM_FILTER_SIZE, "stream"))
   val stream_bit_vec_array = Module(new StreamBitVectorArray)
   val pf_queue_filter = Module(new MutiLevelPrefetchFilter)
+  stride_meta_array.hartIdSelect := hartIdSelect
+  stream_bit_vec_array.hartIdSelect := hartIdSelect
+  pf_queue_filter.hartIdSelect := hartIdSelect
 
   // for now, if the stream is disabled, train and prefetch process will continue, without sending out and reqs
   // Stream 0, Stride 1

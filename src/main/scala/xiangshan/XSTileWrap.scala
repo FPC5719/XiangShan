@@ -17,6 +17,7 @@
 package xiangshan
 
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import device.{TIMER, TIMERParams, TimeAsync}
 import org.chipsalliance.cde.config._
@@ -108,6 +109,9 @@ class XSTileWrap()(implicit p: Parameters) extends LazyModule
       val iso_en = Option.when(EnablePowerDown) (Input (Bool()))
     })
 
+    // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+    val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
     val reset_sync = withClockAndReset(clock, (reset.asBool || io.hartResetReq).asAsyncReset)(ResetGen(io.dft_reset))
     val noc_reset_sync = EnableCHIAsyncBridge.map(_ => withClockAndReset(clock, noc_reset.get)(ResetGen(io.dft_reset)))
     val soc_reset_sync = withClockAndReset(clock, soc_reset)(ResetGen(io.dft_reset))
@@ -129,6 +133,7 @@ class XSTileWrap()(implicit p: Parameters) extends LazyModule
       msi_data_cpu := RegEnable(io.msiInfo.bits, msi_vld_sync)
     }
     tile.module.io.hartId := io.hartId
+    tile.module.hartIdSelect := hartIdSelect
     tile.module.io.msiInfo.valid := msi_vld_cpu
     tile.module.io.msiInfo.bits := msi_data_cpu
 

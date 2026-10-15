@@ -17,6 +17,7 @@
 package xiangshan.mem.prefetch
 
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import xscache.coupledL2.PrefetchCtrlFromCore
 import org.chipsalliance.cde.config.Parameters
@@ -118,6 +119,9 @@ abstract class BasePrefecher()(implicit p: Parameters) extends XSModule
   with HasDCacheParameters
 {
   lazy val io: PrefetcherIO = IO(new PrefetcherIO())
+
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
 
   // By default, there are no tlb transformations, l2_req and l3_req
   io.tlb_req.req.valid := false.B

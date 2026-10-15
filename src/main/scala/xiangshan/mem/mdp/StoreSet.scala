@@ -26,6 +26,7 @@ package xiangshan.mem.mdp
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import xiangshan._
 import utils._
@@ -108,6 +109,9 @@ class SSIT(implicit p: Parameters) extends XSModule {
     data_array.io.waddr(i) := 0.U
     data_array.io.wdata(i) := 0.U.asTypeOf(new SSITDataEntry)
   })
+
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
 
   val debug_valid = RegInit(VecInit(Seq.fill(SSITSize)(false.B)))
   val debug_ssid = Reg(Vec(SSITSize, UInt(SSIDWidth.W)))
@@ -348,8 +352,7 @@ class SSIT(implicit p: Parameters) extends XSModule {
   }
 
   // StoreSet ChiselDB trace
-  val storeSetUpdateHartId = p(XSHartIdKey).HartId
-  val storeSetUpdateTable = ChiselDB.createTable(s"StoreSetUpdateDB$storeSetUpdateHartId", new StoreSetUpdateDBEntry, basicDB = false)
+  val storeSetUpdateTable = ChiselDB.PerHart().createTable("StoreSetUpdateDB", new StoreSetUpdateDBEntry, basicDB = false)
 
   val storeSetUpdateTypeLxsx = 0.U(3.W)
   val storeSetUpdateTypeLysx = 1.U(3.W)
@@ -389,7 +392,7 @@ class SSIT(implicit p: Parameters) extends XSModule {
   storeSetUpdateTable.log(
     data = storeSetUpdateEntry,
     en = s2_mempred_update_req_valid,
-    site = s"SSIT$storeSetUpdateHartId",
+    site = "SSIT",
     clock = clock,
     reset = reset
   )

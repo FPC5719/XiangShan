@@ -16,6 +16,7 @@
 package xiangshan.frontend.ifu
 
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import utility.HasCircularQueuePtrHelper
@@ -83,12 +84,16 @@ class Ifu(implicit p: Parameters) extends IfuModule
   }
   val io: IfuIO = IO(new IfuIO)
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   // submodule
   private val instrBoundary      = Module(new InstrBoundary)
   private val predChecker        = Module(new PredChecker)
   private val frontendTrigger    = Module(new FrontendTrigger)
   private val rvcExpanders       = Seq.fill(IBufferEnqueueWidth)(Module(new RvcExpander))
   private val perfAnalyzer       = Module(new IfuPerfAnalysis)
+  perfAnalyzer.hartIdSelect := hartIdSelect
   private val uncacheUnit        = Module(new IfuUncacheUnit)
   private val uncacheRvcExpander = Module(new RvcExpander)
 

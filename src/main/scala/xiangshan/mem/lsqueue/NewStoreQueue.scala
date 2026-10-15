@@ -15,6 +15,7 @@
 package xiangshan.mem
 
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import difftest._
 import difftest.common.DifftestMem
@@ -876,6 +877,9 @@ abstract class PhysicalStoreQueueBase(implicit p: Parameters) extends LSQModule 
       val perfMmioBusy    = Output(Bool())
     })
 
+    // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+    implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
     private object UncacheState extends ChiselEnum {
       val idle      = Value
       val sendReq   = Value
@@ -906,9 +910,9 @@ abstract class PhysicalStoreQueueBase(implicit p: Parameters) extends LSQModule 
 
     /*============================================ force write sbuffer ===============================================*/
     val ForceWriteUpper = Wire(UInt(log2Up(StoreQueuePhysicalSize + 1).W))
-    ForceWriteUpper := Constantin.createRecord(s"ForceWriteUpper_${p(XSHartIdKey).HartId}", initValue = StoreQueueForceWriteSbufferUpper)
+    ForceWriteUpper := Constantin.PerHart().createRecord("ForceWriteUpper", initValue = StoreQueueForceWriteSbufferUpper)
     val ForceWriteLower = Wire(UInt(log2Up(StoreQueuePhysicalSize + 1).W))
-    ForceWriteLower := Constantin.createRecord(s"ForceWriteLower_${p(XSHartIdKey).HartId}", initValue = StoreQueueForceWriteSbufferLower)
+    ForceWriteLower := Constantin.PerHart().createRecord("ForceWriteLower", initValue = StoreQueueForceWriteSbufferLower)
 
     val valid_cnt = io.validCnt
     io.sbufferCtrl.req.forceWrite := RegNext(Mux(valid_cnt >= ForceWriteUpper,
@@ -1513,6 +1517,9 @@ abstract class PhysicalStoreQueueBase(implicit p: Parameters) extends LSQModule 
   val io = IO(new PhysicalStoreQueueIO(param))
   println("PhysicalStoreQueue: size:" + StoreQueuePhysicalSize)
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
   // entries define
   val dataEntries        = Reg(Vec(StoreQueuePhysicalSize, new SQDataEntryBundle())) // no need to reset
   val ctrlEntries        = RegInit(VecInit(Seq.fill(StoreQueuePhysicalSize)(0.U.asTypeOf(new SQCtrlEntryBundle)))) // need to reset
@@ -1564,6 +1571,7 @@ abstract class PhysicalStoreQueueBase(implicit p: Parameters) extends LSQModule 
   private val forwardModule         = Module(new ForwardModule(param))
   private val deqModule             = Module(new DeqModule(param, new SqPtr))
   private val unalignQueue          = Module(new UnalignQueue(param))
+  deqModule.hartIdSelect := hartIdSelect
 
   val deqPtrExtNext = deqModule.io.deqPtrExtNext
   val sqDeqCnt      = deqModule.io.sqDeqCnt
@@ -2129,9 +2137,12 @@ class StoreQueue(implicit p: Parameters) extends LSQModule with HasPerfEvents {
   param.bindBackendParam(backendParams)
 
   val io = IO(new StoreQueueIO(param))
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
   val virtualStoreQueue = Module(new VirtualStoreQueue(PhysicalQueueSize, MultipleSize, SnapshotInterval, new SqPtr))
   val physicalQueue = Module(new PhysicalStoreQueue)
 
+  physicalQueue.hartIdSelect := hartIdSelect
   virtualStoreQueue.io.hartId := io.hartId
   physicalQueue.io.hartId := io.hartId
 

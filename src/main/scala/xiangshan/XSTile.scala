@@ -18,6 +18,7 @@ package xiangshan
 
 import org.chipsalliance.cde.config.{Config, Parameters}
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util.{Valid, ValidIO, log2Up}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
@@ -130,6 +131,10 @@ class XSTile()(implicit p: Parameters) extends LazyModule
       val l2_flush_done = Option.when(EnablePowerDown) (Output(Bool()))
     })
 
+    // Choice selectors must be standalone ports: a bundle subfield lowers to a `firrtl.subfield`
+    // operation, which `firrtl.param_instance_choice` rejects as a selector.
+    val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
     dontTouch(io.hartId)
     dontTouch(io.msiInfo)
     io.teemsiInfo.foreach(dontTouch(_))
@@ -139,6 +144,7 @@ class XSTile()(implicit p: Parameters) extends LazyModule
 
     l2top.module.io.hartId.fromTile := io.hartId
     core.module.io.hartId := l2top.module.io.hartId.toCore
+    core.module.hartIdSelect := hartIdSelect
     core.module.io.reset_vector := l2top.module.io.reset_vector.toCore
     core.module.io.msiInfo := l2top.module.io.msiInfo.toCore
     l2top.module.io.msiInfo.fromTile := io.msiInfo

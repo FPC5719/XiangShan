@@ -27,6 +27,7 @@
 
 package xiangshan.frontend
 import chisel3._
+import chisel3.properties.Property
 import chisel3.util._
 import freechips.rocketchip.diplomacy.LazyModule
 import freechips.rocketchip.diplomacy.LazyModuleImp
@@ -105,6 +106,11 @@ class FrontendImp(wrapper: Frontend)(implicit p: Parameters) extends LazyModuleI
   val io:      FrontendIO     = IO(wrapper.inner.module.io.cloneType)
   val io_perf: Vec[PerfEvent] = IO(wrapper.inner.module.io_perf.cloneType)
 
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  val hartDomain = p(xiangshan.XSHartIdDomainKey)
+  val hartIdSelect = IO(Input(Property[hartDomain.Case]()))
+  wrapper.inner.module.hartIdSelect := hartIdSelect
+
   io <> wrapper.inner.module.io
   io_perf <> wrapper.inner.module.io_perf
 
@@ -117,6 +123,8 @@ abstract class FrontendInlinedImpBase(outer: FrontendInlined) extends LazyModule
     with HasFrontendParameters
     with HasPerfEvents {
   val io: FrontendIO = IO(new FrontendIO)
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
 }
 
 class FrontendInlined()(implicit p: Parameters) extends LazyModule with HasFrontendParameters {
@@ -134,6 +142,7 @@ class FrontendInlinedImp(outer: FrontendInlined) extends FrontendInlinedImpBase(
   private val icache       = outer.icache.module
   private val bpu          = Module(new Bpu)
   private val ifu          = Module(new Ifu)
+  ifu.hartIdSelect := hartIdSelect
   private val ibuffer      = Module(new IBuffer)
   private val ftq          = Module(new Ftq)
 
