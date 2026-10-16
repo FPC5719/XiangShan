@@ -143,6 +143,7 @@ class XSTile()(implicit p: Parameters) extends LazyModule
     val core_soft_rst = core_reset_sink.in.head._1 // unused
 
     l2top.module.io.hartId.fromTile := io.hartId
+    l2top.module.hartIdSelect := hartIdSelect
     core.module.io.hartId := l2top.module.io.hartId.toCore
     core.module.hartIdSelect := hartIdSelect
     core.module.io.reset_vector := l2top.module.io.reset_vector.toCore

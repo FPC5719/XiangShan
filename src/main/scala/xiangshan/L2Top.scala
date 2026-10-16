@@ -18,6 +18,7 @@ package xiangshan
 
 import chisel3._
 import chisel3.util._
+import chisel3.properties.Property
 import org.chipsalliance.cde.config._
 import chisel3.util.{Valid, ValidIO}
 import freechips.rocketchip.devices.debug.DebugModuleKey
@@ -93,11 +94,13 @@ class L2TopInlined()(implicit p: Parameters) extends LazyModule
   val xbar_l2_buffer = TLBuffer()
 
   val enbale_tllog = !debugOpts.FPGAPlatform && debugOpts.AlwaysBasicDB
+  // The logger site strings end up in the tile definition, which is shared between harts, so they
+  // must not carry a hart id any more.
   val l1d_logger = Seq.tabulate(numMemChannelsFromDcache)(i =>
-    TLLogger(s"L2_L1D_${p(XSHartIdKey).HartId}_ch$i", enbale_tllog)
+    TLLogger(s"L2_L1D_ch$i", enbale_tllog)
   )
-  val l1i_logger = TLLogger(s"L2_L1I_${p(XSHartIdKey).HartId}", enbale_tllog)
-  val ptw_logger = TLLogger(s"L2_PTW_${p(XSHartIdKey).HartId}", enbale_tllog)
+  val l1i_logger = TLLogger(s"L2_L1I", enbale_tllog)
+  val ptw_logger = TLLogger(s"L2_PTW", enbale_tllog)
   val ptw_to_l2_buffer = LazyModule(new TLBuffer)
   val i_mmio_buffer = LazyModule(new TLBuffer)
 
@@ -117,8 +120,8 @@ class L2TopInlined()(implicit p: Parameters) extends LazyModule
         None
       }
     val config = new Config((_, _, _) => {
+      case XSHartIdDomainKey => p(XSHartIdDomainKey)
       case L2ParamKey => coreParams.L2CacheParamsOpt.get.copy(
-        hartId = p(XSHartIdKey).HartId,
         FPGAPlatform = debugOpts.FPGAPlatform,
         hasMbist = hasMbist,
         PrivateClintRange = if(UsePrivateClint) Some(TIMERRange) else None,
@@ -247,6 +250,10 @@ class L2TopInlined()(implicit p: Parameters) extends LazyModule
       val dft_reset_out = Option.when(hasMbist)(Output(new DFTResetSignals()))
       // val reset_core = IO(Output(Reset()))
     })
+    // Choice selectors must be standalone ports: a bundle subfield lowers to a `firrtl.subfield`
+    // operation, which `firrtl.param_instance_choice` rejects as a selector.
+    val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
+
     io.dft_out.zip(io.dft).foreach({ case(a, b) => a := b })
     io.dft_reset_out.zip(io.dft_reset).foreach({ case(a, b) => a := b })
 
@@ -320,6 +327,7 @@ class L2TopInlined()(implicit p: Parameters) extends LazyModule
       io.l2_fdbk_pf_ctrl := l2.io.l2_fdbk_pf_ctrl
       l2.io.debugTopDown.robHeadPaddr := DontCare
       l2.io.hartId := io.hartId.fromTile
+      l2.hartIdSelect := hartIdSelect
       l2.io.debugTopDown.robHeadPaddr := io.debugTopDown.robHeadPaddr
       l2.io.debugTopDown.robTrueCommit := io.debugTopDown.robTrueCommit
       io.debugTopDown.l2MissMatch := l2.io.debugTopDown.l2MissMatch
@@ -404,7 +412,10 @@ class L2Top()(implicit p: Parameters) extends LazyModule
   class Imp(wrapper: LazyModule) extends LazyModuleImp(wrapper) {
     val io = IO(inner.module.io.cloneType)
     val reset_core = IO(Output(Reset()))
+    // Choice selectors must be standalone ports; see L2TopInlined.Imp.
+    val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
     io <> inner.module.io
+    inner.module.hartIdSelect := hartIdSelect
 
     if (debugOpts.ResetGen) {
       ResetGen(ResetGenNode(Seq(

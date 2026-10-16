@@ -107,7 +107,7 @@ class FrontendImp(wrapper: Frontend)(implicit p: Parameters) extends LazyModuleI
   val io_perf: Vec[PerfEvent] = IO(wrapper.inner.module.io_perf.cloneType)
 
   // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
-  val hartDomain = p(xiangshan.XSHartIdDomainKey)
+  val hartDomain = p(utility.XSHartIdDomainKey)
   val hartIdSelect = IO(Input(Property[hartDomain.Case]()))
   wrapper.inner.module.hartIdSelect := hartIdSelect
 

@@ -18,7 +18,7 @@ package xiangshan
 
 import chisel3._
 import chisel3.util._
-import utility.HartIdDomain
+import utility.{HartIdDomain, XSHartIdDomainKey}
 import xscache.coupledL2._
 import xscache.chi._
 import freechips.rocketchip.diplomacy.AddressSet
@@ -51,8 +51,6 @@ case object XSHartIdKey extends Field[XSHartId]
  * XSHartId is only for migration compatibility. To be deprecated.
  */
 case class XSHartId(HartId: Int = 0)
-
-case object XSHartIdDomainKey extends Field[HartIdDomain]
 
 case object XSTileKey extends Field[Seq[XSCoreParameters]]
 
