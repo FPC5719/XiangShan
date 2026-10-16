@@ -22,6 +22,7 @@ package xiangshan.frontend.ftq
 
 import chisel3._
 import chisel3.util._
+import chisel3.properties.Property
 import org.chipsalliance.cde.config.Parameters
 import utility.DataHoldBypass
 import utility.HasCircularQueuePtrHelper
@@ -68,6 +69,9 @@ class Ftq(implicit p: Parameters) extends FtqModule
     with IfuRedirectReceiver
     with BackendRedirectReceiver
     with ICacheDataHelper {
+
+  // Standalone port: choice selectors cannot be bundle subfields (see XSTile).
+  implicit val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
 
   class FtqIO extends FtqBundle {
     val fromBpu: BpuToFtqIO = Flipped(new BpuToFtqIO)

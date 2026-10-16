@@ -145,6 +145,7 @@ class FrontendInlinedImp(outer: FrontendInlined) extends FrontendInlinedImpBase(
   ifu.hartIdSelect := hartIdSelect
   private val ibuffer      = Module(new IBuffer)
   private val ftq          = Module(new Ftq)
+  ftq.hartIdSelect := hartIdSelect
 
   private val needFlush = RegNext(io.backend.toFtq.redirect.valid)
 
@@ -200,7 +201,8 @@ class FrontendInlinedImp(outer: FrontendInlined) extends FrontendInlinedImpBase(
   }
 
   // icache use a non-block tlb port
-  private val itlb = Module(new TLB(coreParams.itlbPortNum, nRespDups = 1, Seq(false), itlbParams))
+  // The itlb owns the first L1 TLB difftest slots; the dtlbs follow in `MemBlock`.
+  private val itlb = Module(new TLB(coreParams.itlbPortNum, nRespDups = 1, Seq(false), itlbParams, 0))
   itlb.io.hartId := io.hartId
   itlb.io.flushPipe.foreach(_ := icache.io.itlbFlushPipe)
   itlb.io.redirect := DontCare // itlb has flushpipe, don't need redirect signal

@@ -646,6 +646,10 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   val DTlbSize = TlbSubSizeVec.sum
   val TlbStartVec = TlbSubSizeVec.scanLeft(0)(_ + _).dropRight(1)
   val TlbEndVec = TlbSubSizeVec.scanLeft(0)(_ + _).drop(1)
+  // The itlb (in `Frontend`) owns the first `itlbPortNum` L1 TLB difftest slots, then the three
+  // dtlbs follow. The layout is fixed so `difftest.index` does not depend on elaboration order;
+  // harts are separated by `difftest.coreid`.
+  val TlbDiffIdxBaseVec = TlbStartVec.map(_ + coreParams.itlbPortNum)
   val L2toL1DTLBPortIndex = TlbStartVec(dtlb_pf_idx)
   println(f"TLB Size:")
   println(f"  size = $DTlbSize = ${TlbSubSizeVec}")
@@ -659,9 +663,9 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   println(f"  TLB #$L2toL1DTLBPortIndex%-2d => L2Prefetcher")
 
   // dtlb instantiation
-  val dtlb_ld_tlb_ld = Module(new TLBNonBlock(TlbSubSizeVec(dtlb_ld_idx), 2, ldtlbParams))
-  val dtlb_st_tlb_st = Module(new TLBNonBlock(TlbSubSizeVec(dtlb_st_idx), 1, sttlbParams))
-  val dtlb_prefetch_tlb_prefetch = Module(new TLBNonBlock(TlbSubSizeVec(dtlb_pf_idx), 2, pftlbParams))
+  val dtlb_ld_tlb_ld = Module(new TLBNonBlock(TlbSubSizeVec(dtlb_ld_idx), 2, ldtlbParams, TlbDiffIdxBaseVec(dtlb_ld_idx)))
+  val dtlb_st_tlb_st = Module(new TLBNonBlock(TlbSubSizeVec(dtlb_st_idx), 1, sttlbParams, TlbDiffIdxBaseVec(dtlb_st_idx)))
+  val dtlb_prefetch_tlb_prefetch = Module(new TLBNonBlock(TlbSubSizeVec(dtlb_pf_idx), 2, pftlbParams, TlbDiffIdxBaseVec(dtlb_pf_idx)))
   val dtlb_ld = Seq(dtlb_ld_tlb_ld.io)
   val dtlb_st = Seq(dtlb_st_tlb_st.io)
   val dtlb_prefetch = Seq(dtlb_prefetch_tlb_prefetch.io)

@@ -18,8 +18,11 @@ package xiangshan
 
 import org.chipsalliance.cde.config.{Config, Parameters}
 import chisel3._
+import chisel3.experimental.cacheable.CacheableKey
+import chisel3.experimental.cacheable.CacheableModule.ElaborationPhase
 import chisel3.properties.Property
 import chisel3.util.{Valid, ValidIO, log2Up}
+import scala.reflect.{ClassTag, classTag}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile.{BusErrorUnit, BusErrorUnitParams, BusErrors}
@@ -32,11 +35,21 @@ import utility.sram.SramBroadcastBundle
 import xscache.chi.{DecoupledPortIO, PortIO}
 import xiangshan.backend.trace.TraceCoreInterface
 
-class XSTile()(implicit p: Parameters) extends LazyModule
+class XSTile()(implicit p: Parameters) extends CacheableLazyModule
   with HasXSParameter
   with HasSoCParameter
 {
   override def shouldBeInlined: Boolean = false
+
+  // The tile instance body is shared between harts. Its identity is the core parameters; the only
+  // per-tile parameter is `XSTileIndexKey`, which is diplomacy-only and must not reach the body.
+  type Imp = XSTileImp
+  protected def cacheableTag: ClassTag[XSTileImp] = classTag[XSTileImp]
+  override protected def cacheableKey: CacheableKey[XSTileImp] = new CacheableKey[XSTileImp] {
+    override def cacheKey(args: Seq[Any]): Any = coreParams
+  }
+  override protected def genImp(phase: ElaborationPhase): XSTileImp = new XSTileImp(this, phase)
+
   val core = LazyModule(new XSCore())
   val l2top = LazyModule(new L2Top())
 
@@ -104,7 +117,7 @@ class XSTile()(implicit p: Parameters) extends LazyModule
   l2top.inner.d_mmio_port := memBlock.uncache_port
 
   // =========== IO Connection ============
-  class XSTileImp(wrapper: LazyModule) extends LazyModuleImp(wrapper) {
+  class XSTileImp(wrapper: LazyModule, phase: ElaborationPhase) extends CacheableModuleImp(wrapper, phase) {
     val io = IO(new Bundle {
       val hartId = Input(UInt(hartIdLen.W))
       val msiInfo = Input(ValidIO(UInt(soc.IMSICParams.MSI_INFO_WIDTH.W)))
@@ -135,10 +148,17 @@ class XSTile()(implicit p: Parameters) extends LazyModule
     // operation, which `firrtl.param_instance_choice` rejects as a selector.
     val hartIdSelect = IO(Input(Property[hartIdDomain.Case]()))
 
+    /** Everything below runs once per cached definition; only the ports above are per instance. */
+    protected def buildModule(): Unit = {
     dontTouch(io.hartId)
     dontTouch(io.msiInfo)
     io.teemsiInfo.foreach(dontTouch(_))
     if (!io.chi.isEmpty) { dontTouch(io.chi.get) }
+    // Annotations must be made on the definition's own ports: the instance stubs of a cached
+    // definition are not emitted as modules, so annotating their ports from the parent dangles.
+    io.dft.foreach(dontTouch(_))
+    io.dft_reset.foreach(dontTouch(_))
+    io.nodeID.foreach(dontTouch(_))
 
     val core_soft_rst = core_reset_sink.in.head._1 // unused
 
@@ -236,7 +256,6 @@ class XSTile()(implicit p: Parameters) extends LazyModule
     if (debugOpts.ResetGen && enableL2) {
       core.module.reset := l2top.module.reset_core
     }
+    }
   }
-
-  lazy val module = new XSTileImp(this)
 }

@@ -71,7 +71,7 @@ class BaseConfig(n: Int) extends Config((site, here, up) => {
   case SoCParamsKey => SoCParameters()
   case CVMParamsKey => CVMParameters()
   case PMParameKey => PMParameters()
-  case XSHartIdKey => XSHartId(0)
+  case XSTileIndexKey => 0
   case XSTileKey => Seq.fill(n)(XSCoreParameters())
   case ExportDebug => DebugAttachParams(protocols = Set(JTAG))
   case DebugModuleKey => Some(DebugModuleParams(

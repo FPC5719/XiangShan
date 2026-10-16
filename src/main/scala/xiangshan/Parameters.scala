@@ -43,14 +43,14 @@ import xiangshan.mem.prefetch._
 import scala.math.{max, pow}
 
 /**
- * XSHartIdKey is only for migration compatibility. To be deprecated.
+ * Index of this tile inside the SoC, provisioned by the top level.
+ *
+ * Only diplomacy-side consumers need a plain per-tile number (the DTS `cpu` node's `reg`, which is
+ * the hart id software sees). Everything inside the cacheable part of the tile uses
+ * `XSHartIdDomainKey` plus a `Property` selector instead, so this key must never be read from an
+ * instance body that is shared between harts.
  */
-case object XSHartIdKey extends Field[XSHartId]
-
-/**
- * XSHartId is only for migration compatibility. To be deprecated.
- */
-case class XSHartId(HartId: Int = 0)
+case object XSTileIndexKey extends Field[Int]
 
 case object XSTileKey extends Field[Seq[XSCoreParameters]]
 

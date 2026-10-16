@@ -99,7 +99,7 @@ trait HasXSDts {
   }
 
   ResourceBinding {
-    Resource(device, "reg").bind(ResourceAddress(p(XSHartIdKey).HartId))
+    Resource(device, "reg").bind(ResourceAddress(p(XSTileIndexKey)))
     val int_resources = (
       memBlock.inner.clint_int_sink.edges.in.flatMap(_.source.sources) ++
       memBlock.inner.plic_int_sink.edges.in.flatMap(_.source.sources) ++

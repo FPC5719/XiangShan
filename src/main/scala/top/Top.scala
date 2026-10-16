@@ -110,10 +110,9 @@ class XSTop(collectDifftestInModule: Boolean = true)(implicit p: Parameters) ext
 
   val core_with_l2 = tiles.zipWithIndex.map { case (coreParams, idx) =>
     LazyModule(new XSTile()(XSCachedParametersOptional(p(CachedParameterKey), p.alter((site, here, up) => {
-      case XSHartIdKey => XSHartId(idx)
+      case XSTileIndexKey => idx
       case XSHartIdDomainKey => hartIdDomain
       case XSCoreParamsKey => coreParams
-      case PerfCounterOptionsKey => up(PerfCounterOptionsKey).copy(perfDBHartID = idx)
       case CHIDataCheckKey if isZhuJiang => "none"
       case CHIPoisonKey if isZhuJiang => false
     }))))
@@ -493,8 +492,10 @@ class XSTop(collectDifftestInModule: Boolean = true)(implicit p: Parameters) ext
       io.traceCoreInterface(i).toEncoder.iretire := VecInit(traceInterface.toEncoder.groups.map(_.bits.iretire)).asUInt
       io.traceCoreInterface(i).toEncoder.ilastsize := VecInit(traceInterface.toEncoder.groups.map(_.bits.ilastsize)).asUInt
 
-      core.module.io.dft.foreach(dontTouch(_) := DontCare)
-      core.module.io.dft_reset.foreach(dontTouch(_) := DontCare)
+      // The ports are `dontTouch`ed on the tile's side: the tile's module definition is shared
+      // between harts, so annotating the instance's ports here would dangle.
+      core.module.io.dft.foreach(_ := DontCare)
+      core.module.io.dft_reset.foreach(_ := DontCare)
       core.module.io.reset_vector := io.riscv_rst_vec(i)
     }
 
@@ -504,7 +505,6 @@ class XSTop(collectDifftestInModule: Boolean = true)(implicit p: Parameters) ext
           val coreCHI = core.module.io.chi.get
           val extLLCLogger = CHILogger(s"L2[${i}]_ExtLLC", true)
           val extLLCRN = chi_extllc_opt.get.module.io.rn(i)
-          dontTouch(coreCHI)
           coreCHI <> extLLCLogger.io.up
           extLLCRN <> extLLCLogger.io.down
           require(coreCHI.getWidth == extLLCRN.getWidth)
@@ -520,7 +520,6 @@ class XSTop(collectDifftestInModule: Boolean = true)(implicit p: Parameters) ext
           val chiRouteMap = Map[AddressSet, Int]() ++
             Seq(lowAddressRange -> mmioRouteId) ++
             AddressSet(0x0L, 0xffffffffffffL).subtract(lowAddressRange).map(_ -> llcRouteId)
-          dontTouch(coreCHI)
           bind(
             route(coreCHI, chiRouteMap),
             Map(mmioRouteId -> mmioLogger.io.up, llcRouteId -> llcLogger.io.up)
@@ -603,7 +602,6 @@ class XSTop(collectDifftestInModule: Boolean = true)(implicit p: Parameters) ext
         } else {
           nodeID := i.U
         }
-        dontTouch(nodeID)
       }
     }
 
@@ -671,12 +669,15 @@ object TopMain extends App {
   ChiselDB.init(enableChiselDB && !envInFPGA)
 
   val topPrefix = config(SoCParamsKey).XSTopPrefix
+  // The SoC is a `LazyModule`: building it registers `ChoiceDomain`s and other Chisel state, which
+  // requires an active Builder context. `Generator.execute` takes the module by name and evaluates
+  // it inside its generator annotation, so the construction has to stay unevaluated until then.
   if (config(SoCParamsKey).UseXSNoCDiffTop) {
     if (enableDifftest) Gateway.setConfig("H") // use XMR to avoid extra topIO
-    val soc = DisableMonitors(p => LazyModule(new XSNoCDiffTop()(p)))(config)
+    lazy val soc = DisableMonitors(p => LazyModule(new XSNoCDiffTop()(p)))(config)
     Generator.execute(firrtlOpts, DifftestModule.top(soc.module, topPrefix), firtoolOpts)
   } else if (config(SoCParamsKey).UseXSTileDiffTop) {
-    val soc = DisableMonitors(p => LazyModule(new XSTileDiffTop()(p)))(config)
+    lazy val soc = DisableMonitors(p => LazyModule(new XSTileDiffTop()(p)))(config)
     Generator.execute(firrtlOpts, DifftestModule.top(soc.module, topPrefix), firtoolOpts)
   } else {
     if (enableDifftest) {
@@ -684,7 +685,7 @@ object TopMain extends App {
       Gateway.setConfig("U")
     }
 
-    val soc = if (config(SoCParamsKey).UseXSNoCTop)
+    lazy val soc = if (config(SoCParamsKey).UseXSNoCTop)
       DisableMonitors(p => LazyModule(new XSNoCTop()(p)))(config)
     else
       DisableMonitors(p => LazyModule(new XSTop()(p)))(config)

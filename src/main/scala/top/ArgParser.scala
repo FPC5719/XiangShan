@@ -274,8 +274,7 @@ object ArgParser {
       case PerfCounterOptionsKey => PerfCounterOptions(
         enablePerfPrint = here(DebugOptionsKey).EnablePerfDebug && !here(DebugOptionsKey).FPGAPlatform,
         enablePerfDB = here(DebugOptionsKey).EnableRollingDB && !here(DebugOptionsKey).FPGAPlatform,
-        perfLevel = XSPerfLevel.withName(here(DebugOptionsKey).PerfLevel),
-        perfDBHartID = 0
+        perfLevel = XSPerfLevel.withName(here(DebugOptionsKey).PerfLevel)
       )
     })
     (config, firrtlOpts, firtoolOpts ++ firtoolOptions.map(_.option))

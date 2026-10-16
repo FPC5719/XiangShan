@@ -42,10 +42,11 @@ import freechips.rocketchip.rocket.PMPConfig
   * @param Width: The number of requestors
   * @param Block: Blocked or not for each requestor ports
   * @param q: TLB Parameters, like entry number, each TLB has its own parameters
+  * @param diffIdxBase: first `difftest.index` slot owned by this TLB
   * @param p: XiangShan Paramemters, like XLEN
   */
 
-class TLB(Width: Int, nRespDups: Int = 1, Block: Seq[Boolean], q: TLBParameters)(implicit p: Parameters) extends TlbModule
+class TLB(Width: Int, nRespDups: Int = 1, Block: Seq[Boolean], q: TLBParameters, diffIdxBase: Int)(implicit p: Parameters) extends TlbModule
   with HasCSRConst
   with HasPerfEvents
 {
@@ -786,7 +787,10 @@ class TLB(Width: Int, nRespDups: Int = 1, Block: Seq[Boolean], q: TLBParameters)
       if (!Seq("itlb", "ldtlb", "sttlb").contains(q.name)) {
         difftest.valid := false.B
       }
-      difftest.index := TLBDiffId(p(XSHartIdKey).HartId).U
+      // Slots are contiguous from the base, one per requestor. `difftest.index` only has to be
+      // unique within one core (harts are separated by `difftest.coreid`), so the base is a fixed
+      // layout constant rather than an elaboration-order-dependent counter.
+      difftest.index := (diffIdxBase + i).U
       difftest.vpn := RegEnable(get_pn(req_in(i).bits.vaddr), req_in(i).valid)
       difftest.ppn := get_pn(io.requestor(i).resp.bits.paddr(0))
       difftest.satp := Cat(csr.satp.mode, csr.satp.asid, csr.satp.ppn)
@@ -805,21 +809,10 @@ class TLB(Width: Int, nRespDups: Int = 1, Block: Seq[Boolean], q: TLBParameters)
   }
 }
 
-object TLBDiffId {
-  var i: Int = 0
-  var lastHartId: Int = -1
-  def apply(hartId: Int): Int = {
-    if (lastHartId != hartId) {
-      i = 0
-      lastHartId = hartId
-    }
-    i += 1
-    i - 1
-  }
-}
-
-class TLBNonBlock(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Parameters) extends TLB(Width, nRespDups, Seq.fill(Width)(false), q)
-class TLBBLock(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Parameters) extends TLB(Width, nRespDups, Seq.fill(Width)(true), q)
+class TLBNonBlock(Width: Int, nRespDups: Int = 1, q: TLBParameters, diffIdxBase: Int)(implicit p: Parameters)
+  extends TLB(Width, nRespDups, Seq.fill(Width)(false), q, diffIdxBase)
+class TLBBLock(Width: Int, nRespDups: Int = 1, q: TLBParameters, diffIdxBase: Int)(implicit p: Parameters)
+  extends TLB(Width, nRespDups, Seq.fill(Width)(true), q, diffIdxBase)
 
 class TlbReplace(Width: Int, q: TLBParameters)(implicit p: Parameters) extends TlbModule {
   val io = IO(new TlbReplaceIO(Width, q))
