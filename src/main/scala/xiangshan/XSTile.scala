@@ -45,9 +45,8 @@ class XSTile()(implicit p: Parameters) extends CacheableLazyModule
   // per-tile parameter is `XSTileIndexKey`, which is diplomacy-only and must not reach the body.
   type Imp = XSTileImp
   protected def cacheableTag: ClassTag[XSTileImp] = classTag[XSTileImp]
-  override protected def cacheableKey: CacheableKey[XSTileImp] = new CacheableKey[XSTileImp] {
-    override def cacheKey(args: Seq[Any]): Any = coreParams
-  }
+  // Force cache
+  override protected object cacheableKey extends CacheableKey[XSTileImp]
   override protected def genImp(phase: ElaborationPhase): XSTileImp = new XSTileImp(this, phase)
 
   val core = LazyModule(new XSCore())
