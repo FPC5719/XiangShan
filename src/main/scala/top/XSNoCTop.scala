@@ -38,7 +38,6 @@ import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.util.{AsyncQueueParams, AsyncQueueSource}
 import chisel3.experimental.annotate
 import difftest.{DifftestTopIO, HasDiffTestInterfaces}
-import difftest.DifftestModule
 import freechips.rocketchip.util.AsyncResetSynchronizerShiftReg
 
 abstract class BaseXSSocImp(wrapper: BaseXSSoc) extends LazyRawModuleImp(wrapper)
@@ -493,8 +492,6 @@ class XSNoCTop()(implicit p: Parameters) extends BaseXSSoc
     with HasIMSICImp[XSNoCTop]
     with HasDTSImp[XSNoCTop]
   {
-    protected def collectDifftest: Boolean = true
-
     /* work in SoC clock domain by default in XSTop scope */
     childClock := soc_clock
     childReset := soc_reset_sync
@@ -503,12 +500,6 @@ class XSNoCTop()(implicit p: Parameters) extends BaseXSSoc
     val cpuGatedClock = noPrefix { buildLowPower(clock, cpuReset_sync) }
     core_with_l2.module.clock := cpuGatedClock
     core_with_l2.module.reset := cpuReset.asAsyncReset
-
-    withClockAndReset(soc_clock, soc_reset_sync) {
-      if (collectDifftest && (debugOpts.EnableDifftest || debugOpts.AlwaysBasicDiff)) {
-        DifftestModule.collect("XIANGSHAN_KMHV3")
-      }
-    }
   }
 
   lazy val module = new XSNoCTopImp(this)
@@ -517,7 +508,6 @@ class XSNoCTop()(implicit p: Parameters) extends BaseXSSoc
 class XSNoCDiffTop(implicit p: Parameters) extends XSNoCTop
 {
   class XSNoCDiffTopImp(wrapper: XSNoCTop) extends XSNoCTopImp(wrapper) with HasDiffTestInterfaces {
-    override protected def collectDifftest: Boolean = false
     override def cpuName: Option[String] = Some("XIANGSHAN_KMHV3")
     override protected def implicitClock: Clock = clock
     override protected def implicitReset: Reset = reset
